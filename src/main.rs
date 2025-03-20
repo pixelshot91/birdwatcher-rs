@@ -4,9 +4,10 @@ use std::{
     io::Write,
     sync::{Arc, Mutex},
     time::Duration,
+    vec,
 };
 
-use tokio::task::JoinSet;
+use tokio::{process::Command, task::JoinSet, time::timeout};
 
 #[derive(Clone)]
 struct ServiceDefinition {
@@ -14,6 +15,7 @@ struct ServiceDefinition {
     command: String,
     args: Vec<String>,
     interval: Duration,
+    command_timeout: Duration,
     /// Number of consecutive failure to consider the service unhealthy
     fall: u32,
     /// Number of consecutive failure to consider the service healthy
@@ -88,14 +90,21 @@ struct Service {
     state: ServiceState,
 }
 
+#[derive(Clone)]
 struct Config {
     generated_file_path: OsString,
+    reload_command: String,
+    reload_command_args: Vec<String>,
+    reload_timeout: Duration,
 }
 
 #[tokio::main]
 async fn main() {
     let config = Config {
         generated_file_path: "birdwatcher_generated.conf".into(),
+        reload_command: "birdc".to_string(),
+        reload_command_args: vec!["configure".to_string()],
+        reload_timeout: Duration::from_secs(2),
     };
 
     let service_defintions = [
@@ -104,14 +113,16 @@ async fn main() {
             command: "/bin/ls".to_string(),
             args: vec!["1".to_string()],
             interval: Duration::from_secs(1),
+            command_timeout: Duration::from_secs(1),
             fall: 1,
             rise: 3,
         },
         ServiceDefinition {
             function_name: "match_false".to_string(),
-            command: "/bin/ls".to_string(),
+            command: "/bin/sleep".to_string(),
             args: vec!["2".to_string()],
             interval: Duration::from_secs(2),
+            command_timeout: Duration::from_secs(1),
             fall: 2,
             rise: 2,
         },
@@ -128,6 +139,7 @@ async fn main() {
         .collect();
 
     write_bird_function(&config.generated_file_path, &services);
+    launch_reload_function(&config).await;
 
     let services: Arc<Mutex<Vec<Service>>> = Arc::new(Mutex::new(services));
 
@@ -139,27 +151,31 @@ async fn main() {
         .for_each(|(service_nb, service_def)| {
             println!("Staring {}", service_def.function_name);
             let services = services.clone();
-            let generated_file_path = config.generated_file_path.clone();
+            let config = config.clone();
             join_set.spawn(async move {
                 loop {
                     println!(
                         "Regen function {}, Launching command {}",
                         service_def.function_name, service_def.command
                     );
-                    let result = tokio::process::Command::new(service_def.command.clone())
+                    let command = tokio::process::Command::new(service_def.command.clone())
                         .args(&service_def.args)
-                        .output()
-                        .await;
+                        .output();
+                    let result = timeout(service_def.command_timeout, command).await;
                     let return_value = match result {
-                        Ok(o) => {
+                        Err(..) => {
+                            println!("Command timed out");
+                            false
+                        }
+                        Ok(Ok(o)) => {
                             if o.status.success() {
                                 true
                             } else {
                                 false
                             }
                         }
-                        Err(e) => {
-                            eprintln!(
+                        Ok(Err(e)) => {
+                            println!(
                                 "Could not launch command \'{}\'. e = {}",
                                 service_def.command, e
                             );
@@ -167,7 +183,7 @@ async fn main() {
                         }
                     };
                     println!("return value {return_value}");
-                    {
+                    let should_reload_bird = {
                         let mut services_lock = services.lock().unwrap();
                         let old_state = &services_lock[service_nb].state;
 
@@ -177,10 +193,18 @@ async fn main() {
                         services_lock[service_nb].state = new_state;
 
                         if should_reload {
-                            write_bird_function(&generated_file_path, services_lock.as_slice());
-                            // TODO: bird configure
-                            println!("Bird configure")
+                            write_bird_function(
+                                &config.generated_file_path,
+                                services_lock.as_slice(),
+                            );
+                            // We cannot call the reload command here because we still hold a lock over `services`.
+                            // So first get out of this scope
                         }
+                        should_reload
+                    };
+                    if should_reload_bird {
+                        println!("Need to reload Bird");
+                        launch_reload_function(&config).await;
                     }
 
                     tokio::time::sleep(service_def.interval).await;
@@ -190,7 +214,7 @@ async fn main() {
 
     println!("All services launched");
     if let Some(t) = join_set.join_next().await {
-        eprintln!("Task failed with {}", t.err().unwrap())
+        println!("Task failed with {}", t.err().unwrap())
     }
 }
 
@@ -217,4 +241,33 @@ function {function_name}() -> bool
 
     let mut f = File::create(generated_file_path).unwrap();
     f.write_all(content.as_bytes()).unwrap();
+}
+
+async fn launch_reload_function(config: &Config) {
+    let reload_command = Command::new(&config.reload_command)
+        .args(&config.reload_command_args)
+        .output();
+    let reload_return_value = timeout(config.reload_timeout, reload_command).await;
+    match reload_return_value {
+        Ok(Ok(o)) => {
+            if o.status.success() {
+                println!("Reload successful");
+            } else {
+                println!(
+                    "Reload failure. stdout = {}, stderr = {}",
+                    String::from_utf8_lossy(&o.stdout),
+                    String::from_utf8_lossy(&o.stderr)
+                );
+            }
+        }
+        Ok(Err(e)) => {
+            println!(
+                "Could not launch reload command \'{}\'. e = {}",
+                config.reload_command, e
+            );
+        }
+        Err(_) => {
+            println!("Reload command timed out");
+        }
+    };
 }
