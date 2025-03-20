@@ -1,5 +1,4 @@
 use std::{
-    collections::HashMap,
     ffi::{OsStr, OsString},
     fs::File,
     io::Write,
@@ -9,22 +8,15 @@ use std::{
 
 use tokio::task::JoinSet;
 
-// An IP range
-#[derive(Clone)]
-struct CIDR {}
-
 #[derive(Clone)]
 struct ServiceDefinition {
     function_name: String,
     command: String,
-    prefixes: Option<Vec<CIDR>>,
     interval: Duration,
 }
 
 struct Service {
     def: ServiceDefinition,
-    if_true: String,
-    if_false: String,
     last_result: bool,
 }
 
@@ -42,13 +34,11 @@ async fn main() {
         ServiceDefinition {
             function_name: "match_true".to_string(),
             command: "/bin/true".to_string(),
-            prefixes: None,
             interval: Duration::from_secs(1),
         },
         ServiceDefinition {
             function_name: "match_false".to_string(),
             command: "/bin/false".to_string(),
-            prefixes: None,
             interval: Duration::from_secs(2),
         },
     ];
@@ -57,8 +47,6 @@ async fn main() {
         .iter()
         .map(|def| Service {
             def: def.clone(),
-            if_true: "true".to_string(),
-            if_false: "false".to_string(),
             last_result: false,
         })
         .collect();
@@ -122,18 +110,14 @@ fn write_bird_function(generated_file_path: &OsStr, services: &[Service]) {
         .iter()
         .map(|service| {
             let function_name = &service.def.function_name;
-            let return_value = if service.last_result {
-                &service.if_true
-            } else {
-                &service.if_false
-            };
+            let return_value = if service.last_result { "true" } else { "false" };
             format!(
                 "
-function {function_name} -> bool
+function {function_name}() -> bool
 {{
     return {return_value};
 }}
-            ",
+",
             )
         })
         .join("\n");
