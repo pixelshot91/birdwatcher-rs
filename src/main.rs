@@ -12,6 +12,7 @@ use tokio::task::JoinSet;
 struct ServiceDefinition {
     function_name: String,
     command: String,
+    args: Vec<String>,
     interval: Duration,
     /// Number of consecutive failure to consider the service unhealthy
     fall: u32,
@@ -19,6 +20,7 @@ struct ServiceDefinition {
     rise: u32,
 }
 
+#[derive(Debug)]
 enum ServiceState {
     /// In `Failure` state, count the number of success.
     /// When the number goes above `rise`, switch to `Success` state
@@ -80,42 +82,6 @@ impl ServiceState {
         }
     }
 }
-/*
-let (new_state, should_reload) = match old_state {
-    ServiceState::Failure {
-        nb_of_consecutive_success,
-    } => {
-        if return_value {
-            if nb_of_consecutive_success + 1 == service_def.rise {
-                (
-                    ServiceState::Success {
-                        nb_of_consecutive_failure: 0,
-                    },
-                    true,
-                )
-            } else {
-                (
-                    ServiceState::Failure {
-                        nb_of_consecutive_success: nb_of_consecutive_success
-                            + 1,
-                    },
-                    false,
-                )
-            }
-        } else {
-            // Still another failure
-            (
-                ServiceState::Failure {
-                    nb_of_consecutive_success: 0,
-                },
-                false,
-            )
-        }
-    }
-    ServiceState::Success {
-        nb_of_consecutive_failure,
-    } => todo!(),
-}; */
 
 struct Service {
     def: ServiceDefinition,
@@ -135,14 +101,16 @@ async fn main() {
     let service_defintions = [
         ServiceDefinition {
             function_name: "match_true".to_string(),
-            command: "/bin/true".to_string(),
+            command: "/bin/ls".to_string(),
+            args: vec!["1".to_string()],
             interval: Duration::from_secs(1),
             fall: 1,
             rise: 3,
         },
         ServiceDefinition {
             function_name: "match_false".to_string(),
-            command: "/bin/false".to_string(),
+            command: "/bin/ls".to_string(),
+            args: vec!["2".to_string()],
             interval: Duration::from_secs(2),
             fall: 2,
             rise: 2,
@@ -158,6 +126,8 @@ async fn main() {
             },
         })
         .collect();
+
+    write_bird_function(&config.generated_file_path, &services);
 
     let services: Arc<Mutex<Vec<Service>>> = Arc::new(Mutex::new(services));
 
@@ -177,6 +147,7 @@ async fn main() {
                         service_def.function_name, service_def.command
                     );
                     let result = tokio::process::Command::new(service_def.command.clone())
+                        .args(&service_def.args)
                         .output()
                         .await;
                     let return_value = match result {
@@ -195,40 +166,20 @@ async fn main() {
                             false
                         }
                     };
+                    println!("return value {return_value}");
                     {
                         let mut services_lock = services.lock().unwrap();
                         let old_state = &services_lock[service_nb].state;
 
                         let (new_state, should_reload) =
                             old_state.update_with(return_value, &service_def);
+                        println!("{:?}", new_state);
                         services_lock[service_nb].state = new_state;
 
-                        // let state_changed = state.update_with(return_value);
-
-                        /* let old_state = &services_lock[service_nb].state;
-                        let (new_state, should_reload) = match old_state {
-                            ServiceState::Failure { nb_of_success } => {
-                                if return_value {
-                                    if nb_of_consecutive_success + 1 == service_def.rise {
-                                        (ServiceState::Success { nb_of_failure: 0 }, true)
-                                    } else {
-                                        (
-                                            ServiceState::Failure {
-                                                nb_of_success: nb_of_consecutive_success + 1,
-                                            },
-                                            false,
-                                        )
-                                    }
-                                } else {
-                                    // Still another failure
-                                    (ServiceState::Failure { nb_of_success: 0 }, false)
-                                }
-                            }
-                            ServiceState::Success { nb_of_failure } => todo!(),
-                        }; */
                         if should_reload {
                             write_bird_function(&generated_file_path, services_lock.as_slice());
                             // TODO: bird configure
+                            println!("Bird configure")
                         }
                     }
 
