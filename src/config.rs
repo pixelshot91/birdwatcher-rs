@@ -15,6 +15,7 @@ mod raw {
     #[derive(Clone, Deserialize, Serialize)]
     #[serde(deny_unknown_fields)]
     pub struct ServiceDefinition {
+        pub service_name: String,
         pub function_name: String,
         pub command: String,
         pub args: Vec<String>,
@@ -59,6 +60,7 @@ impl Config {
                     .service_definitions
                     .into_iter()
                     .map(|raw| ServiceDefinition {
+                        service_name: raw.service_name,
                         function_name: raw.function_name,
                         command: raw.command,
                         args: raw.args,
@@ -75,6 +77,9 @@ impl Config {
 
 #[derive(Clone, Deserialize, Serialize)]
 pub struct ServiceDefinition {
+    /// Used for logs only
+    pub service_name: String,
+    /// The name of the generated `bird` function
     pub function_name: String,
     pub command: String,
     pub args: Vec<String>,
