@@ -126,6 +126,7 @@ async fn main() {
         ],
     };
 
+    // Contains the only mutable state: a counter for each service
     let mut service_states: Vec<ServiceState> = config
         .service_definitions
         .iter()
@@ -221,6 +222,8 @@ async fn main() {
         }
     });
 
+    // No tasks should terminate (neither a service task or the main task).
+    // If one does exit with an error
     if let Some(t) = join_set.join_next().await {
         println!("Task failed with {}", t.err().unwrap())
     }
@@ -228,6 +231,7 @@ async fn main() {
 
 fn write_bird_function(config: &Config, services_states: &[ServiceState]) {
     use itertools::Itertools;
+    // Combines the services static definition and their mutable state
     let services = config.service_definitions.iter().zip(services_states);
     let content = services
         .map(|(service_def, service_state)| {
