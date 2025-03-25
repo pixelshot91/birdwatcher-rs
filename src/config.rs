@@ -1,7 +1,9 @@
+// Use f32 instead of Duration to avoid having to create a `secs` and `nanos` entry for each duration in the TOML file
 mod raw {
     use serde::{Deserialize, Serialize};
 
     #[derive(Clone, Deserialize, Serialize)]
+    #[serde(deny_unknown_fields)]
     pub struct Config {
         pub generated_file_path: String,
         pub reload_command: String,
@@ -11,6 +13,7 @@ mod raw {
     }
 
     #[derive(Clone, Deserialize, Serialize)]
+    #[serde(deny_unknown_fields)]
     pub struct ServiceDefinition {
         pub function_name: String,
         pub command: String,
