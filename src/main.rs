@@ -1,13 +1,6 @@
-use std::{
-    ffi::{OsStr, OsString},
-    fs::File,
-    io::Write,
-    sync::{Arc, Mutex},
-    time::Duration,
-    vec,
-};
+use std::{ffi::OsString, fs::File, io::Write, time::Duration};
 
-use tokio::{process::Command, task::JoinSet, time::timeout};
+use tokio::{process::Command, time::timeout};
 
 #[derive(Clone)]
 struct ServiceDefinition {
@@ -96,6 +89,12 @@ struct Config {
     reload_command: String,
     reload_command_args: Vec<String>,
     reload_timeout: Duration,
+    service_definitions: Vec<ServiceDefinition>,
+}
+
+struct ServiceCommandResult {
+    service_id: usize,
+    success: bool,
 }
 
 #[tokio::main]
@@ -105,126 +104,122 @@ async fn main() {
         reload_command: "birdc".to_string(),
         reload_command_args: vec!["configure".to_string()],
         reload_timeout: Duration::from_secs(2),
+        service_definitions: vec![
+            ServiceDefinition {
+                function_name: "match_true".to_string(),
+                command: "/bin/ls".to_string(),
+                args: vec!["1".to_string()],
+                interval: Duration::from_secs(1),
+                command_timeout: Duration::from_secs(1),
+                fall: 1,
+                rise: 3,
+            },
+            ServiceDefinition {
+                function_name: "match_false".to_string(),
+                command: "/bin/sleep".to_string(),
+                args: vec!["2".to_string()],
+                interval: Duration::from_secs(2),
+                command_timeout: Duration::from_secs(1),
+                fall: 2,
+                rise: 2,
+            },
+        ],
     };
 
-    let service_defintions = [
-        ServiceDefinition {
-            function_name: "match_true".to_string(),
-            command: "/bin/ls".to_string(),
-            args: vec!["1".to_string()],
-            interval: Duration::from_secs(1),
-            command_timeout: Duration::from_secs(1),
-            fall: 1,
-            rise: 3,
-        },
-        ServiceDefinition {
-            function_name: "match_false".to_string(),
-            command: "/bin/sleep".to_string(),
-            args: vec!["2".to_string()],
-            interval: Duration::from_secs(2),
-            command_timeout: Duration::from_secs(1),
-            fall: 2,
-            rise: 2,
-        },
-    ];
-
-    let services: Vec<Service> = service_defintions
+    let mut service_states: Vec<ServiceState> = config
+        .service_definitions
         .iter()
-        .map(|def| Service {
-            def: def.clone(),
-            state: ServiceState::Failure {
-                nb_of_success: def.rise - 1,
-            },
+        .map(|def| ServiceState::Failure {
+            nb_of_success: def.rise - 1,
         })
         .collect();
 
-    write_bird_function(&config.generated_file_path, &services);
+    write_bird_function(&config, &service_states);
     launch_reload_function(&config).await;
 
-    let services: Arc<Mutex<Vec<Service>>> = Arc::new(Mutex::new(services));
+    let (tx, mut rx) = tokio::sync::mpsc::channel(1);
 
-    let mut join_set = JoinSet::new();
-
-    service_defintions
-        .into_iter()
-        .enumerate()
-        .for_each(|(service_nb, service_def)| {
-            println!("Staring {}", service_def.function_name);
-            let services = services.clone();
-            let config = config.clone();
-            join_set.spawn(async move {
-                loop {
-                    println!(
-                        "Regen function {}, Launching command {}",
-                        service_def.function_name, service_def.command
-                    );
-                    let command = tokio::process::Command::new(service_def.command.clone())
-                        .args(&service_def.args)
-                        .output();
-                    let result = timeout(service_def.command_timeout, command).await;
-                    let return_value = match result {
-                        Err(..) => {
-                            println!("Command timed out");
-                            false
-                        }
-                        Ok(Ok(o)) => {
-                            if o.status.success() {
-                                true
-                            } else {
+    async_scoped::TokioScope::scope_and_block(|s| {
+        config
+            .service_definitions
+            .iter()
+            .enumerate()
+            .for_each(|(service_nb, service_def)| {
+                println!("Starting task for service {}", service_def.function_name);
+                let tx = tx.clone();
+                s.spawn(async move {
+                    loop {
+                        println!(
+                            "Regen function {:?}, Launching command {:?} with args {:?}",
+                            service_def.function_name, service_def.command, service_def.args
+                        );
+                        let command = tokio::process::Command::new(service_def.command.clone())
+                            .args(&service_def.args)
+                            .output();
+                        let result = timeout(service_def.command_timeout, command).await;
+                        let return_value = match result {
+                            Err(..) => {
+                                println!("Command timed out");
                                 false
                             }
-                        }
-                        Ok(Err(e)) => {
-                            println!(
-                                "Could not launch command \'{}\'. e = {}",
-                                service_def.command, e
-                            );
-                            false
-                        }
-                    };
-                    println!("return value {return_value}");
-                    let should_reload_bird = {
-                        let mut services_lock = services.lock().unwrap();
-                        let old_state = &services_lock[service_nb].state;
+                            Ok(Ok(o)) => {
+                                if o.status.success() {
+                                    true
+                                } else {
+                                    false
+                                }
+                            }
+                            Ok(Err(e)) => {
+                                println!(
+                                    "Could not launch command \'{}\'. e = {}",
+                                    service_def.command, e
+                                );
+                                false
+                            }
+                        };
+                        println!("return value {return_value}");
 
-                        let (new_state, should_reload) =
-                            old_state.update_with(return_value, &service_def);
-                        println!("{:?}", new_state);
-                        services_lock[service_nb].state = new_state;
+                        tx.send(ServiceCommandResult {
+                            service_id: service_nb,
+                            success: return_value,
+                        })
+                        .await
+                        .unwrap();
 
-                        if should_reload {
-                            write_bird_function(
-                                &config.generated_file_path,
-                                services_lock.as_slice(),
-                            );
-                            // We cannot call the reload command here because we still hold a lock over `services`.
-                            // So first get out of this scope
-                        }
-                        should_reload
-                    };
-                    if should_reload_bird {
-                        println!("Need to reload Bird");
-                        launch_reload_function(&config).await;
+                        tokio::time::sleep(service_def.interval).await;
                     }
-
-                    tokio::time::sleep(service_def.interval).await;
-                }
+                });
             });
-        });
+        println!("All tasks launched");
 
-    println!("All services launched");
-    if let Some(t) = join_set.join_next().await {
-        println!("Task failed with {}", t.err().unwrap())
-    }
+        // Main task. Listen for new result from all the tasks spawned above
+        s.spawn(async {
+            loop {
+                let service_command_result = rx.recv().await.unwrap();
+                let (new_state, should_reload) = service_states[service_command_result.service_id]
+                    .update_with(
+                        service_command_result.success,
+                        &config.service_definitions[service_command_result.service_id],
+                    );
+                service_states[service_command_result.service_id] = new_state;
+
+                if should_reload {
+                    write_bird_function(&config, &service_states); //&config.generated_file_path, &services);
+                    launch_reload_function(&config).await;
+                }
+            }
+        });
+    });
 }
 
-fn write_bird_function(generated_file_path: &OsStr, services: &[Service]) {
+fn write_bird_function(config: &Config, services_states: &[ServiceState]) {
+    //generated_file_path: &OsStr, services: &[Service]) {
     use itertools::Itertools;
+    let services = config.service_definitions.iter().zip(services_states);
     let content = services
-        .iter()
-        .map(|service| {
-            let function_name = &service.def.function_name;
-            let return_value = match service.state {
+        .map(|(service_def, service_state)| {
+            let function_name = &service_def.function_name;
+            let return_value = match service_state {
                 ServiceState::Failure { .. } => "false",
                 ServiceState::Success { .. } => "true",
             };
@@ -239,7 +234,7 @@ function {function_name}() -> bool
         })
         .join("\n");
 
-    let mut f = File::create(generated_file_path).unwrap();
+    let mut f = File::create(&config.generated_file_path).unwrap();
     f.write_all(content.as_bytes()).unwrap();
 }
 
