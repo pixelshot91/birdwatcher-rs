@@ -1,3 +1,5 @@
+#![feature(never_type)]
+
 mod config;
 mod deser;
 
@@ -9,7 +11,7 @@ use config::{Config, ServiceState};
 
 use clap::Parser;
 
-use anyhow::{Result, Context};
+use anyhow::{anyhow, Context, Result};
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
@@ -29,7 +31,8 @@ struct ServiceCommandResult {
 async fn main() -> Result<()> {
     let cli = Cli::parse();
 
-    let config: Config = Config::load_from_file(&cli.config).context(format!("Failed to load config file {:?}", cli.config))?;
+    let config: Config = Config::load_from_file(&cli.config)
+        .context(format!("Failed to load config file {:?}", cli.config))?;
 
     // Contains the only mutable state: a counter for each service
     let mut service_states: Vec<ServiceState> = config
@@ -130,11 +133,13 @@ async fn main() -> Result<()> {
     });
 
     // No tasks should terminate (neither a service task or the main task).
-    // If one does exit with an error
-    if let Some(t) = join_set.join_next().await {
-        println!("Task failed with {}", t.err().unwrap())
-    }
-    Ok(())
+    // If one does exit, this is an error
+    let terminated_task: Result<!, tokio::task::JoinError> = join_set
+        .join_next()
+        .await
+        .ok_or(anyhow!("No tasks in the JoinSet ??"))?;
+    let err = terminated_task.unwrap_err();
+    Err(anyhow!("A task failed: {}", err))
 }
 
 fn write_bird_function(config: &Config, services_states: &[ServiceState]) {
