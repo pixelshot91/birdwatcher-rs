@@ -3,23 +3,26 @@
 ///  - Use f32 instead of Duration to avoid having to create a `secs` and `nanos` entry for each duration in the TOML file
 ///  - Checks that `command` fields have at least one element, the arg0
 mod raw {
-    use serde::{Deserialize, Serialize};
+    use serde::Deserialize;
 
-    #[derive(Clone, Deserialize, Serialize)]
+    use crate::deser::non_neg_f32::NonNegF32;
+
+    #[derive(Clone, Deserialize)]
     #[serde(deny_unknown_fields)]
     pub struct Config {
         pub generated_file_path: String,
+        my_s: NonNegF32,
         pub bird_reload: BirdReload,
         pub service_definitions: Vec<ServiceDefinition>,
     }
-    #[derive(Clone, Deserialize, Serialize)]
+    #[derive(Clone, Deserialize)]
     #[serde(deny_unknown_fields)]
     pub struct BirdReload {
         pub command: Vec<String>,
         pub timeout_s: f32,
     }
 
-    #[derive(Clone, Deserialize, Serialize)]
+    #[derive(Clone, Deserialize)]
     #[serde(deny_unknown_fields)]
     pub struct ServiceDefinition {
         pub service_name: String,
@@ -35,7 +38,6 @@ mod raw {
 }
 
 use anyhow::{Context, Result};
-use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use std::{path::Path, time::Duration};
 
@@ -79,8 +81,6 @@ impl Config {
                             rise: raw.rise,
                         }
                     })
-
-                    
                 })
                 .collect::<Result<Vec<_>, _>>()?,
         })

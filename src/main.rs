@@ -1,4 +1,5 @@
 mod config;
+mod deser;
 
 use std::{fs::File, io::Write, path::PathBuf};
 
