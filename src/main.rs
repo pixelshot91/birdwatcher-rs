@@ -1,26 +1,43 @@
 mod config;
 
-use std::{fs::File, io::Write};
+use std::{fs::File, io::Write, path::PathBuf};
 
 use tokio::{process::Command, task::JoinSet, time::timeout};
 
 use config::{Config, ServiceState};
 
+use clap::Parser;
+
+use anyhow::{Result, Context};
+
+#[derive(Parser)]
+#[command(version, about, long_about = None)]
+struct Cli {
+    /// Sets a custom config file
+    #[arg(short, long, value_name = "FILE")]
+    config: PathBuf,
+}
+
+/// A message send by a Service task to the main task
 struct ServiceCommandResult {
     service_id: usize,
     success: bool,
 }
 
 #[tokio::main]
-async fn main() {
-    let config: Config = Config::load_from_file("birdwatcher.conf");
+async fn main() -> Result<()> {
+    let cli = Cli::parse();
+
+    let config: Config = Config::load_from_file(&cli.config).context(format!("Failed to load config file {:?}", cli.config))?;
 
     // Contains the only mutable state: a counter for each service
     let mut service_states: Vec<ServiceState> = config
         .service_definitions
         .iter()
-        .map(|def| ServiceState::Failure {
-            nb_of_success: def.rise - 1,
+        .map(|def|
+            // Start with all services disabled, but only one success is enough to switch to `Success`
+            ServiceState::Failure {
+                nb_of_success: def.rise - 1,
         })
         .collect();
 
@@ -116,6 +133,7 @@ async fn main() {
     if let Some(t) = join_set.join_next().await {
         println!("Task failed with {}", t.err().unwrap())
     }
+    Ok(())
 }
 
 fn write_bird_function(config: &Config, services_states: &[ServiceState]) {

@@ -1,4 +1,7 @@
-// Use f32 instead of Duration to avoid having to create a `secs` and `nanos` entry for each duration in the TOML file
+/// The Config as it is written in the birdwatcher.conf
+/// It differ from the `elaborated` Config below which use more precise types
+///  - Use f32 instead of Duration to avoid having to create a `secs` and `nanos` entry for each duration in the TOML file
+///  - Checks that `command` fields have at least one element, the arg0
 mod raw {
     use serde::{Deserialize, Serialize};
 
@@ -6,10 +9,14 @@ mod raw {
     #[serde(deny_unknown_fields)]
     pub struct Config {
         pub generated_file_path: String,
-        pub reload_command: String,
-        pub reload_command_args: Vec<String>,
-        pub reload_timeout: f32,
+        pub bird_reload: BirdReload,
         pub service_definitions: Vec<ServiceDefinition>,
+    }
+    #[derive(Clone, Deserialize, Serialize)]
+    #[serde(deny_unknown_fields)]
+    pub struct BirdReload {
+        pub command: Vec<String>,
+        pub timeout_s: f32,
     }
 
     #[derive(Clone, Deserialize, Serialize)]
@@ -17,10 +24,9 @@ mod raw {
     pub struct ServiceDefinition {
         pub service_name: String,
         pub function_name: String,
-        pub command: String,
-        pub args: Vec<String>,
-        pub interval: f32,
-        pub command_timeout: f32,
+        pub command: Vec<String>,
+        pub interval_s: f32,
+        pub command_timeout_s: f32,
         /// Number of consecutive failure to consider the service unhealthy
         pub fall: u32,
         /// Number of consecutive failure to consider the service healthy
@@ -28,9 +34,10 @@ mod raw {
     }
 }
 
+use anyhow::{Context, Result};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
-use std::time::Duration;
+use std::{path::Path, time::Duration};
 
 #[derive(Clone, Deserialize, Serialize)]
 pub struct Config {
@@ -42,36 +49,41 @@ pub struct Config {
 }
 
 impl Config {
-    pub fn load_from_file(filepath: &str) -> Config {
-        let raw_config: Result<crate::config::raw::Config, _> =
-            toml::from_str(&std::fs::read_to_string(filepath).unwrap());
-        match raw_config {
-            Err(e) => {
-                println!("{}", e);
-                panic!();
-            }
+    pub fn load_from_file(filepath: &Path) -> Result<Config> {
+        let config_file_content = fs_err::read_to_string(filepath)
+            .with_context(|| format!("Cannot read file {:?}", filepath))?;
+        let raw_config: raw::Config = toml::from_str(&config_file_content)?;
 
-            Ok(raw_config) => Config {
-                generated_file_path: raw_config.generated_file_path,
-                reload_command: raw_config.reload_command,
-                reload_command_args: raw_config.reload_command_args,
-                reload_timeout: Duration::from_secs_f32(raw_config.reload_timeout),
-                service_definitions: raw_config
-                    .service_definitions
-                    .into_iter()
-                    .map(|raw| ServiceDefinition {
-                        service_name: raw.service_name,
-                        function_name: raw.function_name,
-                        command: raw.command,
-                        args: raw.args,
-                        interval: Duration::from_secs_f32(raw.interval),
-                        command_timeout: Duration::from_secs_f32(raw.command_timeout),
-                        fall: raw.fall,
-                        rise: raw.rise,
+        let (bird_reload_cmd, bird_reload_args) =
+            raw_config.bird_reload.command.split_first().context("'bird_reload.command' should contain at least one element: the path to the executable to run")?;
+
+        Ok(Config {
+            generated_file_path: raw_config.generated_file_path,
+            reload_command: bird_reload_cmd.to_owned(),
+            reload_command_args: bird_reload_args.to_owned(),
+            reload_timeout: Duration::from_secs_f32(raw_config.bird_reload.timeout_s),
+            service_definitions: raw_config
+                .service_definitions
+                .into_iter()
+                .map(|raw| {
+                    raw.command.split_first().context(format!("'service_definitions.command' of service '{}' should contain at least one element: the path to the executable to run", raw.service_name))
+                    .map(|(cmd, args)  | {
+                        ServiceDefinition {
+                            service_name: raw.service_name,
+                            function_name: raw.function_name,
+                            command: cmd.to_owned(),
+                            args: args.to_owned(),
+                            interval: Duration::from_secs_f32(raw.interval_s),
+                            command_timeout: Duration::from_secs_f32(raw.command_timeout_s),
+                            fall: raw.fall,
+                            rise: raw.rise,
+                        }
                     })
-                    .collect_vec(),
-            },
-        }
+
+                    
+                })
+                .collect::<Result<Vec<_>, _>>()?,
+        })
     }
 }
 
@@ -104,6 +116,8 @@ pub enum ServiceState {
 }
 
 impl ServiceState {
+    /// Handle the fall/rise mecanism where multiple success/failure must happen
+    /// consecutivly to cause a state change
     pub fn update_with(
         &self,
         return_value: bool,
