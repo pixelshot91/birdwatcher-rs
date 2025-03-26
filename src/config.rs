@@ -5,13 +5,12 @@
 mod raw {
     use serde::Deserialize;
 
-    use crate::deser::non_neg_f32::NonNegF32;
+    use crate::deser::duration_deser_f32::DurationDeserF32;
 
     #[derive(Clone, Deserialize)]
     #[serde(deny_unknown_fields)]
     pub struct Config {
         pub generated_file_path: String,
-        my_s: NonNegF32,
         pub bird_reload: BirdReload,
         pub service_definitions: Vec<ServiceDefinition>,
     }
@@ -19,7 +18,7 @@ mod raw {
     #[serde(deny_unknown_fields)]
     pub struct BirdReload {
         pub command: Vec<String>,
-        pub timeout_s: f32,
+        pub timeout_s: DurationDeserF32,
     }
 
     #[derive(Clone, Deserialize)]
@@ -28,8 +27,8 @@ mod raw {
         pub service_name: String,
         pub function_name: String,
         pub command: Vec<String>,
-        pub interval_s: f32,
-        pub command_timeout_s: f32,
+        pub interval_s: DurationDeserF32,
+        pub command_timeout_s: DurationDeserF32,
         /// Number of consecutive failure to consider the service unhealthy
         pub fall: u32,
         /// Number of consecutive failure to consider the service healthy
@@ -63,7 +62,7 @@ impl Config {
             generated_file_path: raw_config.generated_file_path,
             reload_command: bird_reload_cmd.to_owned(),
             reload_command_args: bird_reload_args.to_owned(),
-            reload_timeout: Duration::from_secs_f32(raw_config.bird_reload.timeout_s),
+            reload_timeout: raw_config.bird_reload.timeout_s.into(),
             service_definitions: raw_config
                 .service_definitions
                 .into_iter()
@@ -75,8 +74,8 @@ impl Config {
                             function_name: raw.function_name,
                             command: cmd.to_owned(),
                             args: args.to_owned(),
-                            interval: Duration::from_secs_f32(raw.interval_s),
-                            command_timeout: Duration::from_secs_f32(raw.command_timeout_s),
+                            interval: raw.interval_s.into(),
+                            command_timeout: raw.command_timeout_s.into(),
                             fall: raw.fall,
                             rise: raw.rise,
                         }
