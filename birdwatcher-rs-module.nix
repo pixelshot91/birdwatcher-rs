@@ -2,9 +2,6 @@
   config,
   lib,
   pkgs,
-  # birdwatcher-rs,
-  mypkgs,
-  # a,
   ...
 }:
 
@@ -16,6 +13,12 @@ in
   options = {
     services.birdwatcher-rs = {
       enable = mkEnableOption "birdwatcher-rs";
+      config = mkOption {
+        type = types.lines;
+        description = ''
+          birdwatcher-rs configuration file.
+        '';
+      };
     };
   };
 
@@ -32,21 +35,28 @@ in
 
     users.groups.birdwatcher-rs.gid = 1000;
 
-    systemd.services.birdwatcher-rs = {
-      description = "birdwatcher-rs server";
-      after = [ "network.target" ];
-      wantedBy = [ "multi-user.target" ];
-      script = ''
-        exec ${pkgs.birdwatcher-rs}/bin/birdwatcher-rs \
-      '';
+    systemd.services.birdwatcher-rs =
+      let
+        birdwatcher-rs-config = pkgs.writeTextFile {
+          name = "birdwatcher-rs";
+          text = cfg.config;
+        };
+      in
+      {
+        description = "birdwatcher-rs server";
+        after = [ "network.target" ];
+        wantedBy = [ "multi-user.target" ];
+        script = ''
+          exec ${pkgs.birdwatcher-rs}/bin/birdwatcher-rs --config ${birdwatcher-rs-config}\
+        '';
 
-      serviceConfig = {
-        Type = "simple";
-        User = "birdwatcher-rs";
-        Group = "birdwatcher-rs";
-        Restart = "on-failure";
-        RestartSec = "30s";
+        serviceConfig = {
+          Type = "simple";
+          User = "birdwatcher-rs";
+          Group = "birdwatcher-rs";
+          Restart = "on-failure";
+          RestartSec = "30s";
+        };
       };
-    };
   };
 }
