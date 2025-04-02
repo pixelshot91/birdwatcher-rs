@@ -1,4 +1,13 @@
-{ self, pkgs }:
+# To launch:
+#   nix flake check
+# It will launch a VM running birdwatcher with three services
+# To get the output folder, run:
+#   nix derivation show .#checks.x86_64-linux.integration_test | jq --raw-output  .[].outputs.out.path
+# It should contain the test artiacts, like the saved generated configuration
+{
+  self,
+  pkgs,
+}:
 
 pkgs.nixosTest {
   name = "birdwatcher-rs integration test";
@@ -18,21 +27,29 @@ pkgs.nixosTest {
           timeout_s = 2
 
           [[service_definitions]]
-          service_name = "first_service"
-          function_name = "match_true"
-          # command = []
-          command = ["/bin/ls", "1"]
+          service_name = "service_true_name"
+          function_name = "service_true_fn"
+          command = ["/tmp/service_true.sh"]
           command_timeout_s = 1
-          interval_s = 1.2
+          interval_s = 2
           fall = 1
           rise = 3
 
           [[service_definitions]]
-          service_name = "second_service"
-          function_name = "match_false"
-          command = ["/bin/sleep", "2"]
+          service_name = "service_false_name"
+          function_name = "service_false_fn"
+          command = ["/tmp/service_false.sh"]
           command_timeout_s = 1
           interval_s = 2
+          fall = 2
+          rise = 2
+
+          [[service_definitions]]
+          service_name = "service_timeout_name"
+          function_name = "service_timeout_fn"
+          command = ["/tmp/service_timeout.sh"]
+          command_timeout_s = 1
+          interval_s = 3
           fall = 2
           rise = 2
         '';
@@ -42,8 +59,23 @@ pkgs.nixosTest {
     };
 
   testScript = ''
-    machine.wait_for_unit("birdwatcher-rs.service")
-    machine.screenshot("my_screen_1.png")
-    machine.wait_for_open_port(3000, 'localhost', 2)
+    # machine.execute("journalctl -u birdwatcher-rs.service")
+    machine.wait_for_unit("birdwatcher-rs.service", None, 5)
+    print(machine.execute("journalctl -u birdwatcher-rs.service"))
+
+    machine.copy_from_vm("/srv/birdwatcher-rs/birdwatcher_generated.conf", "1")
+    machine.execute("sleep 5")
+    machine.copy_from_vm("/srv/birdwatcher-rs/birdwatcher_generated.conf", "2")
+    machine.execute("sleep 5")
+
+    print("Adding the script files")
+    machine.execute("echo -e '#!/bin/sh\ntrue' > /tmp/service_true.sh")
+    machine.execute("echo -e '#!/bin/sh\nfalse' > /tmp/service_false.sh")
+    machine.execute("echo -e '#!/bin/sh\nsleep 5' > /tmp/service_timeout.sh")
+    machine.execute("chmod +x /tmp/service_*.sh")
+
+    machine.execute("sleep 10")
+
+    machine.copy_from_vm("/srv/birdwatcher-rs/birdwatcher_generated.conf", "3")
   '';
 }
