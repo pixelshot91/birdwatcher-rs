@@ -2,6 +2,8 @@
 #   nix build
 # To check the flake:
 #   nix flake check
+# To get the output artifact of a test:
+#   nix derivation show .#checks.x86_64-linux.integration_test | jq --raw-output  .[].outputs.out.path
 # To run interactivly:
 #   nix run '.#checks.x86_64-linux.integration_test.driverInteractive'
 {
@@ -77,7 +79,7 @@
           {
             # inherit birdwatcher-rs;
 
-            integration_test = pkgs.callPackage ./integration_test.nix {
+            integration_test = pkgs.callPackage ./integration_test/single_service.nix {
               inherit self;
               pkgs = mypkgs;
             };

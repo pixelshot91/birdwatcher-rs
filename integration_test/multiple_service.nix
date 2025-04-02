@@ -1,9 +1,3 @@
-# To launch:
-#   nix flake check
-# It will launch a VM running birdwatcher with three services
-# To get the output folder, run:
-#   nix derivation show .#checks.x86_64-linux.integration_test | jq --raw-output  .[].outputs.out.path
-# It should contain the test artiacts, like the saved generated configuration
 {
   self,
   pkgs,
