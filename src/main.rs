@@ -3,7 +3,7 @@
 mod config;
 mod deser;
 
-use std::{fs::File, io::Write, path::PathBuf};
+use std::{io::Write, path::PathBuf};
 
 use tokio::{process::Command, task::JoinSet, time::timeout};
 
@@ -164,7 +164,7 @@ function {function_name}() -> bool
         })
         .join("\n");
 
-    let mut f = File::create(&config.generated_file_path).unwrap();
+    let mut f = fs_err::File::create(&config.generated_file_path).unwrap();
     f.write_all(content.as_bytes()).unwrap();
 }
 
