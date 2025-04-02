@@ -1,20 +1,17 @@
+# To build:
+#   nix build
+# To check the flake:
+#   nix flake check
+# To run interactivly:
+#   nix run '.#checks.x86_64-linux.integration_test.driverInteractive'
 {
   description = "Build a cargo project without extra checks";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
-
     crane.url = "github:ipetkov/crane";
-
     flake-utils.url = "github:numtide/flake-utils";
-
-    rust-overlay = {
-      url = "github:oxalica/rust-overlay";
-      inputs = {
-        nixpkgs.follows = "nixpkgs";
-        flake-utils.follows = "flake-utils";
-      };
-    };
+    rust-overlay.url = "github:oxalica/rust-overlay";
   };
 
   outputs =
@@ -26,17 +23,23 @@
       rust-overlay,
       ...
     }:
-    flake-utils.lib.eachDefaultSystem (
+    {
+      nixosModules = {
+        birdwatcher-rs-NixosModule = import ./birdwatcher-rs-module.nix;
+      };
+    }
+    // flake-utils.lib.eachDefaultSystem (
       system:
       let
-        # pkgs = nixpkgs.legacyPackages.${system};
-        overlays = [ (import rust-overlay) ];
+        overlays = [
+          (import rust-overlay)
+          # self.packages.${system}.default
+        ];
         pkgs = import nixpkgs {
           inherit system overlays;
         };
+        # pkgs = nixpkgs.legacyPackages.${system}.extend overlays;
 
-        # craneLib = crane.mkLib pkgs;
-        # craneLib = (crane.mkLib pkgs).overrideToolchain ./rust-toolchain.toml;
         craneLib = (crane.mkLib pkgs).overrideToolchain (
           p: p.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml
         );
@@ -47,17 +50,12 @@
           src = craneLib.cleanCargoSource ./.;
           strictDeps = true;
 
-          buildInputs =
-            [
-              # Add additional build inputs here
-            ]
-            ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [
-              # Additional darwin specific inputs can be set here
-              pkgs.libiconv
-            ];
+          buildInputs = [
+            # Add additional build inputs here
+          ];
         };
 
-        my-crate = craneLib.buildPackage (
+        birdwatcher-rs = craneLib.buildPackage (
           commonArgs
           // {
             cargoArtifacts = craneLib.buildDepsOnly commonArgs;
@@ -69,15 +67,23 @@
         );
       in
       {
-        checks = {
-          inherit my-crate;
-        };
+        checks =
+          let
+            overlay = final: prev: {
+              birdwatcher-rs = self.packages.${system}.default; # birdwatcher-rs;
+            };
+            mypkgs = nixpkgs.legacyPackages.${system}.extend overlay;
+          in
+          {
+            # inherit birdwatcher-rs;
 
-        packages.default = my-crate;
+            integration_test = pkgs.callPackage ./integration_test.nix {
+              inherit self;
+              pkgs = mypkgs;
+            };
+          };
 
-        apps.default = flake-utils.lib.mkApp {
-          drv = my-crate;
-        };
+        packages.default = birdwatcher-rs;
 
         devShells.default = craneLib.devShell {
           # Inherit inputs from checks.
