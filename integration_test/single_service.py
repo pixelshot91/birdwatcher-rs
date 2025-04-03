@@ -2,6 +2,10 @@
 # Doc of NixOs test
 # https://nixos.org/manual/nixos/stable/index.html#ssec-machine-objects
 
+# `machine` comes from NixOs test
+# This line juste silence Pylance warning about undefined variable
+machine = machine # type: ignore
+
 conf_out = "/srv/birdwatcher-rs/birdwatcher_generated.conf"
 
 machine.wait_for_unit("birdwatcher-rs.service", None, 5)
