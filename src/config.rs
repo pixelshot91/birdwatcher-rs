@@ -40,6 +40,8 @@ use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::{path::Path, time::Duration};
 
+use crate::service::ServiceDefinition;
+
 #[derive(Clone, Deserialize, Serialize)]
 pub struct Config {
     pub generated_file_path: String,
@@ -53,7 +55,11 @@ impl Config {
     pub fn load_from_file(filepath: &Path) -> Result<Config> {
         let config_file_content = fs_err::read_to_string(filepath)
             .with_context(|| format!("Cannot read file {:?}", filepath))?;
-        let raw_config: raw::Config = toml::from_str(&config_file_content)?;
+        Config::from_string(config_file_content)
+    }
+
+    fn from_string(str: String) -> Result<Config> {
+        let raw_config: raw::Config = toml::from_str(&str)?;
 
         let (bird_reload_cmd, bird_reload_args) =
             raw_config.bird_reload.command.split_first().context("'bird_reload.command' should contain at least one element: the path to the executable to run")?;
@@ -86,83 +92,117 @@ impl Config {
     }
 }
 
-#[derive(Clone, Deserialize, Serialize)]
-pub struct ServiceDefinition {
-    /// Used for logs only
-    pub service_name: String,
-    /// The name of the generated `bird` function
-    pub function_name: String,
-    pub command: String,
-    pub args: Vec<String>,
-    pub interval: Duration,
-    pub command_timeout: Duration,
-    /// Number of consecutive failure to consider the service unhealthy
-    pub fall: u32,
-    /// Number of consecutive failure to consider the service healthy
-    pub rise: u32,
-}
+#[cfg(test)]
+mod test {
+    use super::Config;
+    use indoc::indoc;
+    use pretty_assertions::{assert_eq, assert_ne};
 
-#[derive(Debug)]
-pub enum ServiceState {
-    /// In `Failure` state, count the number of success.
-    /// When the number goes above `rise`, switch to `Success` state
-    /// Any failure reset the counter to 0
-    Failure { nb_of_success: u32 },
-    /// In `Success` state, count the number of failure.
-    /// When the number goes above `fall`, switch to `Failure` state
-    /// Any failure reset the counter to 0
-    Success { nb_of_failure: u32 },
-}
+    #[test]
+    fn empty_config_should_fail() {
+        assert!(Config::from_string("".into()).is_err())
+    }
+    #[test]
+    fn one_service() {
+        let config = Config::from_string(
+            r#"
+generated_file_path = "birdwatcher_generated.conf"
 
-impl ServiceState {
-    /// Handle the fall/rise mecanism where multiple success/failure must happen
-    /// consecutivly to cause a state change
-    pub fn update_with(
-        &self,
-        return_value: bool,
-        service_def: &ServiceDefinition,
-    ) -> (ServiceState, bool) {
-        match self {
-            ServiceState::Failure { nb_of_success } => {
-                if return_value {
-                    if nb_of_success + 1 >= service_def.rise {
-                        // Switch to rise
-                        (ServiceState::Success { nb_of_failure: 0 }, true)
-                    } else {
-                        // Another success, but not enough to rise
-                        (
-                            ServiceState::Failure {
-                                nb_of_success: nb_of_success + 1,
-                            },
-                            false,
-                        )
-                    }
-                } else
-                /* A failure on failure */
-                {
-                    (ServiceState::Failure { nb_of_success: 0 }, false)
-                }
-            }
-            ServiceState::Success { nb_of_failure } => {
-                if return_value {
-                    (ServiceState::Success { nb_of_failure: 0 }, false)
-                } else
-                /* A new failure. Should we switch to Failure? */
-                {
-                    // Yes, switch to Failure
-                    if nb_of_failure + 1 >= service_def.fall {
-                        (ServiceState::Failure { nb_of_success: 0 }, true)
-                    } else {
-                        // No. Another failure, but not enough to fall
-                        (
-                            ServiceState::Success {
-                                nb_of_failure: nb_of_failure + 1,
-                            },
-                            false,
-                        )
-                    }
-                }
-            }
-        }
+[bird_reload]
+command = ["birdc", "configure"]
+timeout_s = 2
+
+[[service_definitions]]
+service_name = "first_service"
+function_name = "match_true"
+command = ["/bin/ls", "1"]
+command_timeout_s = 1
+interval_s = 1.2
+fall = 1
+rise = 3
+"#
+            .to_owned(),
+        )
+        .unwrap();
+        assert_eq!(config.generated_file_path, "birdwatcher_generated.conf");
+    }
+
+    #[test]
+    fn example_config_works() {
+        let config =
+            Config::load_from_file(&std::path::Path::new("example/birdwatcher.conf")).unwrap();
+        assert_eq!(config.service_definitions.len(), 2);
+    }
+
+    #[test]
+    fn unknown_field_should_fail() {
+        let config = Config::from_string(
+            r#"
+generated_file_path = "birdwatcher_generated.conf"
+
+[bird_reload]
+command = ["birdc", "configure"]
+timeout_s = 2
+
+[[service_definitions]]
+service_name = "first_service"
+function_name = "match_true"
+command = ["/bin/ls", "1"]
+command_timeout_s = 1
+interval_s = 1.2
+fall = 1
+rise = 3
+raise = 4
+"#
+            .to_owned(),
+        );
+        assert!(config.is_err());
+        let e = config.err().unwrap();
+
+        assert_eq!(
+            e.to_string(),
+            indoc! { r#"
+            TOML parse error at line 16, column 1
+               |
+            16 | raise = 4
+               | ^^^^^
+            unknown field `raise`, expected one of `service_name`, `function_name`, `command`, `interval_s`, `command_timeout_s`, `fall`, `rise`
+            "# }
+        );
+    }
+
+    #[test]
+    fn missing_field_should_fail() {
+        let config = Config::from_string(
+            r#"
+generated_file_path = "birdwatcher_generated.conf"
+
+[bird_reload]
+command = ["birdc", "configure"]
+timeout_s = 2
+
+[[service_definitions]]
+service_name = "first_service"
+function_name = "match_true"
+command = ["/bin/ls", "1"]
+command_timeout_s = 1
+interval_s = 1.2
+fall = 1
+"#
+            .to_owned(),
+        );
+        assert!(config.is_err());
+        let e = config.err().unwrap();
+
+        assert_eq!(
+            e.to_string(),
+            indoc! { r#"
+                TOML parse error at line 8, column 1
+                  |
+                8 | [[service_definitions]]
+                  | ^^^^^^^^^^^^^^^^^^^^^^^
+                missing field `rise`
+             "# }
+        );
     }
 }

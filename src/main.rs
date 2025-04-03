@@ -2,12 +2,14 @@
 
 mod config;
 mod deser;
+pub mod service;
 
 use std::{io::Write, path::PathBuf};
 
 use tokio::{process::Command, task::JoinSet, time::timeout};
 
-use config::{Config, ServiceState};
+use config::Config;
+use service::ServiceState;
 
 use clap::Parser;
 
