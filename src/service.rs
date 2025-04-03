@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
 #[derive(Clone, Deserialize, Serialize)]
+#[cfg_attr(test, derive(PartialEq, Debug))]
 pub struct ServiceDefinition {
     /// Used for logs only
     pub service_name: String,

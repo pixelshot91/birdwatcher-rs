@@ -96,6 +96,8 @@ impl Config {
 mod test {
     use std::time::Duration;
 
+    use crate::service::ServiceDefinition;
+
     use super::Config;
     use indoc::indoc;
     use pretty_assertions::assert_eq;
@@ -112,16 +114,16 @@ generated_file_path = "birdwatcher_generated.conf"
 
 [bird_reload]
 command = ["birdc", "configure"]
-timeout_s = 2
+timeout_s = 1
 
 [[service_definitions]]
 service_name = "first_service"
 function_name = "match_true"
-command = ["/bin/ls", "1"]
-command_timeout_s = 1
-interval_s = 1.2
-fall = 1
-rise = 3
+command = ["/bin/ls", "myfile.txt"]
+command_timeout_s = 2
+interval_s = 3
+fall = 4
+rise = 5
 "#
             .to_owned(),
         )
@@ -129,7 +131,22 @@ rise = 3
         assert_eq!(config.generated_file_path, "birdwatcher_generated.conf");
         assert_eq!(config.reload_command, "birdc");
         assert_eq!(config.reload_command_args, ["configure"]);
-        assert_eq!(config.reload_timeout, Duration::from_secs(2));
+        assert_eq!(config.reload_timeout, Duration::from_secs(1));
+
+        assert_eq!(config.service_definitions.len(), 1);
+        assert_eq!(
+            config.service_definitions,
+            vec![ServiceDefinition {
+                service_name: "first_service".to_owned(),
+                function_name: "match_true".to_owned(),
+                command: "/bin/ls".to_owned(),
+                args: vec!["myfile.txt".to_owned()],
+                command_timeout: Duration::from_secs(2),
+                interval: Duration::from_secs(3),
+                fall: 4,
+                rise: 5,
+            },]
+        );
     }
 
     #[test]
