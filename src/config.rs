@@ -94,9 +94,11 @@ impl Config {
 
 #[cfg(test)]
 mod test {
+    use std::time::Duration;
+
     use super::Config;
     use indoc::indoc;
-    use pretty_assertions::{assert_eq, assert_ne};
+    use pretty_assertions::assert_eq;
 
     #[test]
     fn empty_config_should_fail() {
@@ -125,6 +127,9 @@ rise = 3
         )
         .unwrap();
         assert_eq!(config.generated_file_path, "birdwatcher_generated.conf");
+        assert_eq!(config.reload_command, "birdc");
+        assert_eq!(config.reload_command_args, ["configure"]);
+        assert_eq!(config.reload_timeout, Duration::from_secs(2));
     }
 
     #[test]

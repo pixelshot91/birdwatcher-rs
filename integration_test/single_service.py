@@ -1,4 +1,7 @@
 
+# Doc of NixOs test
+# https://nixos.org/manual/nixos/stable/index.html#ssec-machine-objects
+
 conf_out = "/srv/birdwatcher-rs/birdwatcher_generated.conf"
 
 machine.wait_for_unit("birdwatcher-rs.service", None, 5)

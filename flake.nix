@@ -6,6 +6,9 @@
 #   nix derivation show .#checks.x86_64-linux.integration_test | jq --raw-output  .[].outputs.out.path
 # To run interactivly:
 #   nix run '.#checks.x86_64-linux.integration_test.driverInteractive'
+
+# The NixOs testing part was inpired from
+#   https://blakesmith.me/2024/03/02/running-nixos-tests-with-flakes.html
 {
   description = "Build a cargo project without extra checks";
 
@@ -46,10 +49,25 @@
           p: p.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml
         );
 
+        unfilteredRoot = ./.; # The original, unfiltered source
+        src = pkgs.lib.fileset.toSource {
+          root = unfilteredRoot;
+          fileset = pkgs.lib.fileset.unions [
+            # Default files from crane (Rust and cargo files)
+            (craneLib.fileset.commonCargoSources unfilteredRoot)
+            # Include the `example/` folder because it is checked for correctness in config.rs test
+            (pkgs.lib.fileset.maybeMissing ./example)
+          ];
+        };
+
         # Common arguments can be set here to avoid repeating them later
         # Note: changes here will rebuild all dependency crates
         commonArgs = {
-          src = craneLib.cleanCargoSource ./.;
+          inherit src;
+
+          # Ensure buildInputs and nativeBuildInputs distinction are well respected
+          # Useful for cross-compilation. Should always be true ?
+          # See: https://github.com/NixOS/nixpkgs/pull/354949/files
           strictDeps = true;
 
           buildInputs = [
