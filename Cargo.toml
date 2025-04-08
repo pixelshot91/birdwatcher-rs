@@ -2,6 +2,10 @@
 name = "birdwatcher-rs"
 version = "0.1.0"
 edition = "2021"
+description = "Run periodic healthcheck on a service to automatically stop or start [BIRD](https://bird.network.cz/) advertisements."
+authors = ["Julien Gautier"]
+license = "MIT OR Apache-2.0"
+
 
 [dependencies]
 anyhow = { version = "1.0.97", features = ["backtrace"] }
