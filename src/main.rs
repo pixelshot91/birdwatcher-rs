@@ -79,13 +79,7 @@ async fn main() -> Result<()> {
                             println!("Command timed out");
                             false
                         }
-                        Ok(Ok(o)) => {
-                            if o.status.success() {
-                                true
-                            } else {
-                                false
-                            }
-                        }
+                        Ok(Ok(o)) => o.status.success(),
                         Ok(Err(e)) => {
                             println!(
                                 "Could not launch command \'{}\'. e = {}",

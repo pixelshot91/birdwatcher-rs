@@ -22,8 +22,8 @@ impl<'de> Deserialize<'de> for DurationDeserF32 {
     }
 }
 
-impl Into<Duration> for DurationDeserF32 {
-    fn into(self) -> Duration {
-        self.0
+impl From<DurationDeserF32> for Duration {
+    fn from(val: DurationDeserF32) -> Self {
+        val.0
     }
 }

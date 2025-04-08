@@ -180,7 +180,7 @@ rise = 5
     #[test]
     fn example_config_works() {
         let config =
-            Config::load_from_file(&std::path::Path::new("example/birdwatcher.conf")).unwrap();
+            Config::load_from_file(std::path::Path::new("example/birdwatcher.conf")).unwrap();
         assert_eq!(config.service_definitions.len(), 2);
     }
 
