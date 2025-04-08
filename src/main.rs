@@ -155,9 +155,13 @@ fn write_bird_function(config: &Config, services_states: &[ServiceState]) {
                 ServiceState::Failure { .. } => "false",
                 ServiceState::Success { .. } => "true",
             };
+            let return_type = match config.generated_file.function_return_type {
+                true => "-> bool",
+                false => "",
+            };
             format!(
                 "
-function {function_name}() -> bool
+function {function_name}() {return_type}
 {{
     return {return_value};
 }}
@@ -166,7 +170,7 @@ function {function_name}() -> bool
         })
         .join("\n");
 
-    let mut f = fs_err::File::create(&config.generated_file_path).unwrap();
+    let mut f = fs_err::File::create(&config.generated_file.path).unwrap();
     f.write_all(content.as_bytes()).unwrap();
 }
 

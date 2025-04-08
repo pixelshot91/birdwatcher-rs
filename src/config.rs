@@ -10,10 +10,22 @@ mod raw {
     #[derive(Clone, Deserialize)]
     #[serde(deny_unknown_fields)]
     pub struct Config {
-        pub generated_file_path: String,
+        pub generated_file: GeneratedFile,
         pub bird_reload: BirdReload,
         pub service_definitions: Vec<ServiceDefinition>,
     }
+
+    #[derive(Clone, Deserialize)]
+    #[serde(deny_unknown_fields)]
+    pub struct GeneratedFile {
+        /// This file will be overriten by birdwatcher-rs each time a service change its state
+        pub path: String,
+        /// Add the return type of generated functions, which has been introduced in BIRD 2.14
+        /// True by default
+        /// Turn it off if you use Bird less than 2.14
+        pub function_return_type: Option<bool>,
+    }
+
     #[derive(Clone, Deserialize)]
     #[serde(deny_unknown_fields)]
     pub struct BirdReload {
@@ -24,7 +36,9 @@ mod raw {
     #[derive(Clone, Deserialize)]
     #[serde(deny_unknown_fields)]
     pub struct ServiceDefinition {
+        /// Informationnal string to describe the service
         pub service_name: String,
+        /// This is the BIRD function that you should call in you bird.conf
         pub function_name: String,
         pub command: Vec<String>,
         pub interval_s: DurationDeserF32,
@@ -42,9 +56,16 @@ use std::{path::Path, time::Duration};
 
 use crate::service::ServiceDefinition;
 
+#[derive(Clone, Serialize, Deserialize)]
+#[cfg_attr(test, derive(PartialEq, Debug))]
+pub struct GeneratedFile {
+    pub path: String,
+    pub function_return_type: bool,
+}
+
 #[derive(Clone, Deserialize, Serialize)]
 pub struct Config {
-    pub generated_file_path: String,
+    pub generated_file: GeneratedFile,
     pub reload_command: String,
     pub reload_command_args: Vec<String>,
     pub reload_timeout: Duration,
@@ -65,7 +86,7 @@ impl Config {
             raw_config.bird_reload.command.split_first().context("'bird_reload.command' should contain at least one element: the path to the executable to run")?;
 
         Ok(Config {
-            generated_file_path: raw_config.generated_file_path,
+            generated_file: GeneratedFile { path: raw_config.generated_file.path, function_return_type: raw_config.generated_file.function_return_type.unwrap_or(true) },
             reload_command: bird_reload_cmd.to_owned(),
             reload_command_args: bird_reload_args.to_owned(),
             reload_timeout: raw_config.bird_reload.timeout_s.into(),
@@ -96,7 +117,7 @@ impl Config {
 mod test {
     use std::time::Duration;
 
-    use crate::service::ServiceDefinition;
+    use crate::{config::GeneratedFile, service::ServiceDefinition};
 
     use super::Config;
     use indoc::indoc;
@@ -128,7 +149,13 @@ rise = 5
             .to_owned(),
         )
         .unwrap();
-        assert_eq!(config.generated_file_path, "birdwatcher_generated.conf");
+        assert_eq!(
+            config.generated_file,
+            GeneratedFile {
+                path: "birdwatcher_generated.conf".to_owned(),
+                function_return_type: true
+            }
+        );
         assert_eq!(config.reload_command, "birdc");
         assert_eq!(config.reload_command_args, ["configure"]);
         assert_eq!(config.reload_timeout, Duration::from_secs(1));
