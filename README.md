@@ -22,7 +22,8 @@ To use install it on NixOs, look up `integration_test/single_service.nix`
 ## Configuration
 
 ```toml
-generated_file_path = "birdwatcher_generated.conf"
+[generated_file]
+path = "birdwatcher_generated.conf"
 
 [bird_reload]
 command = ["birdc", "configure"]

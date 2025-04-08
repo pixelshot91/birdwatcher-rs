@@ -131,7 +131,8 @@ mod test {
     fn one_service() {
         let config = Config::from_string(
             r#"
-generated_file_path = "birdwatcher_generated.conf"
+[generated_file]
+path = "birdwatcher_generated.conf"
 
 [bird_reload]
 command = ["birdc", "configure"]
@@ -187,7 +188,8 @@ rise = 5
     fn unknown_field_should_fail() {
         let config = Config::from_string(
             r#"
-generated_file_path = "birdwatcher_generated.conf"
+[generated_file]
+path = "birdwatcher_generated.conf"
 
 [bird_reload]
 command = ["birdc", "configure"]
@@ -211,9 +213,9 @@ raise = 4
         assert_eq!(
             e.to_string(),
             indoc! { r#"
-            TOML parse error at line 16, column 1
+            TOML parse error at line 17, column 1
                |
-            16 | raise = 4
+            17 | raise = 4
                | ^^^^^
             unknown field `raise`, expected one of `service_name`, `function_name`, `command`, `interval_s`, `command_timeout_s`, `fall`, `rise`
             "# }
@@ -224,7 +226,8 @@ raise = 4
     fn missing_field_should_fail() {
         let config = Config::from_string(
             r#"
-generated_file_path = "birdwatcher_generated.conf"
+[generated_file]
+path = "birdwatcher_generated.conf"
 
 [bird_reload]
 command = ["birdc", "configure"]
@@ -246,9 +249,9 @@ fall = 1
         assert_eq!(
             e.to_string(),
             indoc! { r#"
-                TOML parse error at line 8, column 1
+                TOML parse error at line 9, column 1
                   |
-                8 | [[service_definitions]]
+                9 | [[service_definitions]]
                   | ^^^^^^^^^^^^^^^^^^^^^^^
                 missing field `rise`
              "# }

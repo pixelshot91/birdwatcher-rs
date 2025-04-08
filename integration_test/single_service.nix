@@ -16,7 +16,8 @@ pkgs.nixosTest {
       services.birdwatcher-rs = {
         enable = true;
         config = ''
-          generated_file_path = "${conf_out}"
+          [generated_file]
+          path = "${conf_out}"
 
           [bird_reload]
           command = ["birdc", "configure"]
