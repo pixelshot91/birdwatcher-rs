@@ -65,3 +65,20 @@ To build from source:
 nix build
 result/bin/birdwatcher-rs --config my_config.toml
 ```
+
+### RPC framework
+For the daemon and the client to communicate, I need a RPC framework.  
+I would like it to be, by order of importance:
+- correct: The de/serialization code should be generated. Function name should not be matched as string, but be part of Trait. An error in function name, return type, parameter count or type should be a compile-time error.
+- thread-safe: Although I do not plan many clients to query the daemon, I still want it to resilient against concurrent queries. It should not be possible for a client to see an answer intended for another client.  
+  The framework should link each query/response automatically
+- Maintained: A high number of contributor, frequent releases, and no unanswered issues.
+
+Not very useful:
+- High performance: It will be used as a monitoring tool, at the very most one query per second.
+- Inter-language: The client could be written is something else than Rust.
+
+Option:
+- [tonic](https://github.com/hyperium/tonic): Seems to most popular, but need to redefine all struct in protobuf. A one person project [tonci-rpc](https://github.com/adamrk/tonic-rpc) exists to automatically generate the protobuf from the Rust code, but is unmaintained since February 2023.
+- [tarpc](https://github.com/google/tarpc) Generate message directly from Rust code, but not lot of activity. Weird dependency on `opentelemetry`.
+- [jsonrpsee](https://github.com/paritytech/jsonrpsee) function are not well-typed: function name is a string, and parameter type and count are check at runtime.
