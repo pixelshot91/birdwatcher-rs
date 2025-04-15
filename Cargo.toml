@@ -13,7 +13,13 @@ clap = { version = "4.5.33", features = ["derive"] }
 fs-err = "3.1.0"
 itertools = "0.14.0"
 serde = { version = "1.0.219", features = ["derive"] }
-tokio = { version = "1", features = ["full"] }
+tokio = { version = "1", features = [
+  "process",
+  "rt",
+  "time",
+  "sync",
+  "macros",
+] }
 toml = "0.8.20"
 
 [dev-dependencies]
