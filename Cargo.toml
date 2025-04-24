@@ -13,6 +13,8 @@ clap = { version = "4.5.33", features = ["derive"] }
 fs-err = "3.1.0"
 itertools = "0.14.0"
 serde = { version = "1.0.219", features = ["derive"] }
+tarpc = { version = "0.36.0", features = ["full"] }
+futures = "0.3"
 tokio = { version = "1", features = [
   "process",
   "rt",
@@ -21,6 +23,8 @@ tokio = { version = "1", features = [
   "macros",
 ] }
 toml = "0.8.20"
+tracing = "0.1.41"
+
 
 [dev-dependencies]
 pretty_assertions = "1.4.1"
