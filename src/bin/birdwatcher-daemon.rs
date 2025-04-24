@@ -1,23 +1,20 @@
 #![feature(never_type)]
 
-mod config;
-mod deser;
-mod rpc;
-pub mod service;
 
 use std::{io::Write, path::PathBuf};
 
-use rpc::server::InsightServer;
+use itertools::Itertools;
 use tokio::{process::Command, task::JoinSet, time::timeout};
 
-use config::Config;
-use service::ServiceState;
+use birdwatcher_rs::{
+    config::Config,
+    rpc::common::Insight,
+    rpc::server::InsightServer,
+    service::ServiceState};
 
 use clap::Parser;
 
 use anyhow::{anyhow, Context, Result};
-
-use crate::rpc::common::Insight;
 
 use futures::{future, prelude::*};
 
@@ -145,6 +142,7 @@ async fn main() -> Result<()> {
         });
 
     println!("All services launched");
+    // config.service_definitions.
 
     // Main task. Listen for new result from all the tasks spawned above
     join_set.spawn(async move {
@@ -175,13 +173,15 @@ async fn main() -> Result<()> {
                         "Creating new HelloServer {:?}",
                         channel.transport().peer_addr().unwrap()
                     );
-                    let server = InsightServer(channel.transport().peer_addr().unwrap());
+                    let s = service_states.iter().map(|s| format!("{:?}", s)).join(" ");
+
+                    let server = InsightServer(channel.transport().peer_addr().unwrap(), s);
                     println!("let server");
-                    let a = channel.execute(server.serve()).for_each(spawn).await;
+
+                    channel.execute(server.serve()).for_each(spawn).await;
                     println!("channel.execute");
                 }
             }
-            
         }
     });
 

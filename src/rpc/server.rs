@@ -15,7 +15,7 @@ use tarpc::{
 // This is the type that implements the generated World trait. It is the business logic
 // and is used to start the server.
 #[derive(Clone)]
-pub struct InsightServer(pub SocketAddr);
+pub struct InsightServer(pub SocketAddr, pub String);
 async fn spawn(fut: impl Future<Output = ()> + Send + 'static) {
     tokio::spawn(fut);
 }
@@ -49,7 +49,10 @@ async fn spawn(fut: impl Future<Output = ()> + Send + 'static) {
 } */
 impl Insight for InsightServer {
     async fn hello(self, _: context::Context, name: String) -> String {
-        format!("Hello, {name}! You are connected XXXX from {}", self.0)
+        format!(
+            "Hello, {name}! You are connected XXXX from {}, {}",
+            self.0, self.1
+        )
     }
 
     /* async fn get_time(self, _: ::tarpc::context::Context) -> String {

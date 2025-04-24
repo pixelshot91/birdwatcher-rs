@@ -1,2 +1,2 @@
-pub(crate) mod common;
+pub mod common;
 pub mod server;
