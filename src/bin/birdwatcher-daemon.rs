@@ -175,11 +175,13 @@ async fn main() -> Result<()> {
                     );
                     let s = service_states.iter().map(|s| format!("{:?}", s)).join(" ");
 
-                    let server = InsightServer(channel.transport().peer_addr().unwrap(), s);
+                    let server = InsightServer(channel.transport().peer_addr().unwrap(), &service_states);
                     println!("let server");
 
-                    channel.execute(server.serve()).for_each(spawn).await;
-                    println!("channel.execute");
+                    channel.execute(server.serve());
+
+                    // channel.execute(server.serve()).for_each(spawn).await;
+                    // println!("channel.execute");
                 }
             }
         }

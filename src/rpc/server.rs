@@ -1,4 +1,4 @@
-use crate::rpc::common::Insight;
+use crate::{rpc::common::Insight, service::ServiceState};
 
 use futures::{future, prelude::*};
 
@@ -15,7 +15,7 @@ use tarpc::{
 // This is the type that implements the generated World trait. It is the business logic
 // and is used to start the server.
 #[derive(Clone)]
-pub struct InsightServer(pub SocketAddr, pub String);
+pub struct InsightServer<'a>(pub SocketAddr, pub &'a [ServiceState]);
 async fn spawn(fut: impl Future<Output = ()> + Send + 'static) {
     tokio::spawn(fut);
 }
@@ -47,11 +47,15 @@ async fn spawn(fut: impl Future<Output = ()> + Send + 'static) {
         Ok()
     }
 } */
-impl Insight for InsightServer {
+use itertools::Itertools;
+
+impl<'a> Insight for InsightServer<'a> {
     async fn hello(self, _: context::Context, name: String) -> String {
+        let s = self.1.iter().map(|s| format!("{:?}", s)).join(" ");
+
         format!(
             "Hello, {name}! You are connected XXXX from {}, {}",
-            self.0, self.1
+            self.0, s
         )
     }
 
