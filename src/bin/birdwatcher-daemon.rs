@@ -61,6 +61,7 @@ async fn main() -> Result<()> {
     tracing::info!("Listening on port {}", listener.local_addr().port());
     listener.config_mut().max_frame_length(usize::MAX);
     async fn spawn(fut: impl Future<Output = ()> + Send + 'static) {
+        println!("spawning");
         tokio::spawn(fut);
     }
     let mut li = listener
@@ -172,10 +173,18 @@ async fn main() -> Result<()> {
                     );
                     let s = service_states.iter().map(|s| format!("{:?}", s)).join(" ");
 
-                    let server = InsightServer(channel.transport().peer_addr().unwrap(), &service_states);
+                    let server = InsightServer{
+                        socket: channel.transport().peer_addr().unwrap(),
+                        // service_states: &service_states,
+                        // service_defs: &config.service_definitions
+                    };
                     println!("let server");
 
-                    channel.execute(server.serve()).for_each(async |f| f.await).await;
+                    // channel.execute(server.serve()).for_each(async |f| f.await).await;
+                    let fut = channel.execute(server.serve()).for_each(spawn);
+                    tokio::task::spawn(fut);
+                    
+
                 }
             }
         }

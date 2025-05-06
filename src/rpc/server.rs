@@ -1,8 +1,12 @@
-use crate::{rpc::common::Insight, service::ServiceState};
+use crate::{
+    rpc::common::Insight,
+    service::{ServiceDefinition, ServiceState},
+};
 
 use futures::{future, prelude::*};
 
 use std::{
+    iter::zip,
     net::{IpAddr, Ipv6Addr, SocketAddr},
     time::Duration,
 };
@@ -15,7 +19,12 @@ use tarpc::{
 // This is the type that implements the generated World trait. It is the business logic
 // and is used to start the server.
 #[derive(Clone)]
-pub struct InsightServer<'a>(pub SocketAddr, pub &'a [ServiceState]);
+pub struct InsightServer {
+    pub socket: SocketAddr,
+    // pub service_states: &'a [ServiceState],
+    // pub service_defs: &'a [ServiceDefinition],
+}
+
 async fn spawn(fut: impl Future<Output = ()> + Send + 'static) {
     tokio::spawn(fut);
 }
@@ -49,14 +58,19 @@ async fn spawn(fut: impl Future<Output = ()> + Send + 'static) {
 } */
 use itertools::Itertools;
 
-impl<'a> Insight for InsightServer<'a> {
+impl Insight for InsightServer {
     async fn hello(self, _: context::Context, name: String) -> String {
-        let s = self.1.iter().map(|s| format!("{:?}", s)).join(" ");
+        /* let s = self
+                   .service_states
+                   .iter()
+                   .map(|s| format!("{:?}", s))
+                   .join(" ");
 
-        format!(
-            "Hello, {name}! You are connected XXXX from {}, {}",
-            self.0, s
-        )
+               zip(self.service_defs, self.service_states)
+                   .map(|(def, state)| format!("{}: {:?}", def.service_name, state))
+                   .join("\n")
+        */
+        format!("Hello, {name}! You are connected XXXX from {}", self.socket,)
     }
 
     /* async fn get_time(self, _: ::tarpc::context::Context) -> String {

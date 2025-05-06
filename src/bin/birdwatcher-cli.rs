@@ -7,7 +7,7 @@ use birdwatcher_rs::{
     },
     service::ServiceState,
 };
-use std::{net::SocketAddr, str::FromStr};
+use std::{net::SocketAddr, str::FromStr, time::Duration};
 use tarpc::{
     client,
     context::{self},
@@ -26,9 +26,15 @@ async fn main() -> anyhow::Result<()> {
     // config and any Transport as input.
     let client = InsightClient::new(client::Config::default(), transport.await?).spawn();
 
-    let res = client.hello(context::current(), format!("bla1")).await;
+    // tokio::time::sleep(Duration::from_secs(10)).await;
+    let mut interval = tokio::time::interval(Duration::from_secs(1));
 
-    println!("res = {:?}", res);
+    loop {
+        let res = client.hello(context::current(), format!("bla1")).await;
+
+        println!("res = {}", res.unwrap());
+        interval.tick().await;
+    }
 
     Ok(())
 }
