@@ -8,6 +8,7 @@ use futures::{future, prelude::*};
 use std::{
     iter::zip,
     net::{IpAddr, Ipv6Addr, SocketAddr},
+    sync::Arc,
     time::Duration,
 };
 use tarpc::{
@@ -21,6 +22,7 @@ use tarpc::{
 #[derive(Clone)]
 pub struct InsightServer {
     pub socket: SocketAddr,
+    pub service_states: Arc<std::sync::Mutex<Vec<ServiceState>>>,
     // pub service_states: &'a [ServiceState],
     // pub service_defs: &'a [ServiceDefinition],
 }
@@ -60,17 +62,22 @@ use itertools::Itertools;
 
 impl Insight for InsightServer {
     async fn hello(self, _: context::Context, name: String) -> String {
-        /* let s = self
-                   .service_states
-                   .iter()
-                   .map(|s| format!("{:?}", s))
-                   .join(" ");
+        let s = self
+            .service_states
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|s| format!("{:?}", s))
+            .join(" ");
 
-               zip(self.service_defs, self.service_states)
+        /*       zip(self.service_defs, self.service_states)
                    .map(|(def, state)| format!("{}: {:?}", def.service_name, state))
                    .join("\n")
         */
-        format!("Hello, {name}! You are connected XXXX from {}", self.socket,)
+        format!(
+            "Hello, {name}! You are connected XXXX from {}, {s}",
+            self.socket,
+        )
     }
 
     /* async fn get_time(self, _: ::tarpc::context::Context) -> String {

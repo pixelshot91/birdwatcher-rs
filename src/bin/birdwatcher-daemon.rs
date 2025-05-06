@@ -1,6 +1,10 @@
 #![feature(never_type)]
 
-use std::{io::Write, path::PathBuf};
+use std::{
+    io::Write,
+    path::PathBuf,
+    sync::{Arc, Mutex},
+};
 
 use itertools::Itertools;
 use tokio::{process::Command, task::JoinSet, time::timeout};
@@ -52,6 +56,7 @@ async fn main() -> Result<()> {
                 nb_of_success: def.rise - 1,
         })
         .collect();
+    let service_states = Arc::new(std::sync::Mutex::new(service_states));
 
     let server_addr = (IpAddr::V6(Ipv6Addr::LOCALHOST), 50051);
 
@@ -81,7 +86,7 @@ async fn main() -> Result<()> {
     .buffer_unordered(10)
     .for_each(|_| async {}); */
 
-    write_bird_function(&config, &service_states);
+    write_bird_function(&config, &service_states.lock().unwrap());
     launch_reload_function(&config).await;
 
     let (tx, rx) = tokio::sync::mpsc::channel(1);
@@ -146,21 +151,26 @@ async fn main() -> Result<()> {
     join_set.spawn(async move {
         // Move rx inside this task
         let mut rx = rx;
+        let service_states= service_states;
 
         loop {
              tokio::select! {
                 // A service ran and we receive its result
                 service_command_result = rx.recv() => {
                     let service_command_result = service_command_result.unwrap();
-                    let (new_state, should_reload) = service_states[service_command_result.service_id]
-                        .update_with(
-                            service_command_result.success,
-                            &config.service_definitions[service_command_result.service_id],
-                        );
-                    service_states[service_command_result.service_id] = new_state;
+                    let  (service_states_copy, should_reload) = {
+                        let mut service_states = service_states.lock().unwrap();
+                        let (new_state, should_reload) = service_states[service_command_result.service_id]
+                            .update_with(
+                                service_command_result.success,
+                                &config.service_definitions[service_command_result.service_id],
+                            );
+                        service_states[service_command_result.service_id] = new_state;
+                        (service_states.clone(), should_reload)
+                    };
 
                     if should_reload {
-                        write_bird_function(&config, &service_states);
+                        write_bird_function(&config, &service_states_copy);
                         launch_reload_function(&config).await;
                     }
                 }
@@ -171,19 +181,19 @@ async fn main() -> Result<()> {
                         "Creating new HelloServer {:?}",
                         channel.transport().peer_addr().unwrap()
                     );
-                    let s = service_states.iter().map(|s| format!("{:?}", s)).join(" ");
+                    // let s = service_states.iter().map(|s| format!("{:?}", s)).join(" ");
 
                     let server = InsightServer{
                         socket: channel.transport().peer_addr().unwrap(),
-                        // service_states: &service_states,
+
+                        service_states: service_states.clone(),
                         // service_defs: &config.service_definitions
                     };
                     println!("let server");
 
-                    // channel.execute(server.serve()).for_each(async |f| f.await).await;
                     let fut = channel.execute(server.serve()).for_each(spawn);
                     tokio::task::spawn(fut);
-                    
+
 
                 }
             }

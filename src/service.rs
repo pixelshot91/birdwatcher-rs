@@ -18,7 +18,7 @@ pub struct ServiceDefinition {
     pub rise: u32,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ServiceState {
     /// In `Failure` state, count the number of success.
     /// When the number goes above `rise`, switch to `Success` state
