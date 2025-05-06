@@ -1,4 +1,5 @@
 use crate::{
+    config::Config,
     rpc::common::Insight,
     service::{ServiceDefinition, ServiceState},
 };
@@ -7,6 +8,7 @@ use futures::{future, prelude::*};
 
 use std::{
     iter::zip,
+    marker::PhantomData,
     net::{IpAddr, Ipv6Addr, SocketAddr},
     sync::Arc,
     time::Duration,
@@ -23,8 +25,7 @@ use tarpc::{
 pub struct InsightServer {
     pub socket: SocketAddr,
     pub service_states: Arc<std::sync::Mutex<Vec<ServiceState>>>,
-    // pub service_states: &'a [ServiceState],
-    // pub service_defs: &'a [ServiceDefinition],
+    pub config: Arc<Config>,
 }
 
 async fn spawn(fut: impl Future<Output = ()> + Send + 'static) {
@@ -62,26 +63,25 @@ use itertools::Itertools;
 
 impl Insight for InsightServer {
     async fn hello(self, _: context::Context, name: String) -> String {
-        let s = self
-            .service_states
-            .lock()
-            .unwrap()
-            .iter()
-            .map(|s| format!("{:?}", s))
-            .join(" ");
+        // let s = self
+        //     .service_states
+        //     .lock()
+        //     .unwrap()
+        //     .iter()
+        //     .map(|s| format!("{:?}", s))
+        //     .join(" ");
 
-        /*       zip(self.service_defs, self.service_states)
-                   .map(|(def, state)| format!("{}: {:?}", def.service_name, state))
-                   .join("\n")
-        */
+        let service_states = self.service_states.lock().unwrap();
+        let services = zip(
+            self.config.service_definitions.iter(),
+            service_states.iter(),
+        )
+        .map(|(def, state)| format!("{}: {:?}", def.service_name, state))
+        .join("\n");
+
         format!(
-            "Hello, {name}! You are connected XXXX from {}, {s}",
+            "Hello, {name}! You are connected XXXX from {}, {services}",
             self.socket,
         )
     }
-
-    /* async fn get_time(self, _: ::tarpc::context::Context) -> String {
-        let now: chrono::DateTime<Utc> = chrono::Utc::now();
-        format!("now is {}", now)
-    } */
 }
