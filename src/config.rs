@@ -56,14 +56,14 @@ use std::{path::Path, time::Duration};
 
 use crate::service::ServiceDefinition;
 
-#[derive(Clone, Serialize, Deserialize)]
-#[cfg_attr(test, derive(PartialEq, Debug))]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(test, derive(PartialEq))]
 pub struct GeneratedFile {
     pub path: String,
     pub function_return_type: bool,
 }
 
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Config {
     pub generated_file: GeneratedFile,
     pub reload_command: String,

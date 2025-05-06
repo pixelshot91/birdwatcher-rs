@@ -1,12 +1,7 @@
 #![feature(never_type)]
 
-use std::{
-    io::Write,
-    path::PathBuf,
-    sync::{Arc, Mutex},
-};
+use std::{io::Write, path::PathBuf, sync::Arc};
 
-use itertools::Itertools;
 use tokio::{process::Command, task::JoinSet, time::timeout};
 
 use birdwatcher_rs::{
@@ -47,7 +42,7 @@ async fn main() -> Result<()> {
         .context(format!("Failed to load config file {:?}", cli.config))?;
 
     // Contains the only mutable state: a counter for each service
-    let mut service_states: Vec<ServiceState> = config
+    let service_states: Vec<ServiceState> = config
         .service_definitions
         .iter()
         .map(|def|

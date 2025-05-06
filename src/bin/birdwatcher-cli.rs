@@ -1,13 +1,6 @@
-use anyhow::Ok;
-use birdwatcher_rs::{
-    config::Config,
-    rpc::{
-        common::{Insight, InsightClient},
-        server::InsightServer,
-    },
-    service::ServiceState,
-};
-use std::{net::SocketAddr, str::FromStr, time::Duration};
+use birdwatcher_rs::rpc::common::InsightClient;
+use itertools::Itertools as _;
+use std::{iter::zip, net::SocketAddr, str::FromStr, time::Duration};
 use tarpc::{
     client,
     context::{self},
@@ -30,11 +23,18 @@ async fn main() -> anyhow::Result<()> {
     let mut interval = tokio::time::interval(Duration::from_secs(1));
 
     loop {
-        let res = client.hello(context::current(), format!("bla1")).await;
+        let res = client.get_data(context::current()).await;
 
-        println!("res = {}", res.unwrap());
+        let bundle = res.unwrap();
+
+        let services = zip(
+            bundle.config.service_definitions.iter(),
+            bundle.service_states.iter(),
+        )
+        .map(|(def, state)| format!("{}: {:?}", def.service_name, state))
+        .join("\n");
+
+        println!("res = {}", services);
         interval.tick().await;
     }
-
-    Ok(())
 }

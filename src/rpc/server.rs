@@ -1,23 +1,11 @@
 use crate::{
     config::Config,
     rpc::common::Insight,
-    service::{ServiceDefinition, ServiceState},
+    service::{Bundle, ServiceState},
 };
 
-use futures::{future, prelude::*};
-
-use std::{
-    iter::zip,
-    marker::PhantomData,
-    net::{IpAddr, Ipv6Addr, SocketAddr},
-    sync::Arc,
-    time::Duration,
-};
-use tarpc::{
-    context,
-    server::{self, incoming::Incoming, Channel},
-    tokio_serde::formats::Json,
-};
+use std::{net::SocketAddr, ops::Deref, sync::Arc};
+use tarpc::context;
 
 // This is the type that implements the generated World trait. It is the business logic
 // and is used to start the server.
@@ -28,9 +16,6 @@ pub struct InsightServer {
     pub config: Arc<Config>,
 }
 
-async fn spawn(fut: impl Future<Output = ()> + Send + 'static) {
-    tokio::spawn(fut);
-}
 /* impl InsightServer {
     async fn new() -> anyhow::Result<Self> {
         let server_addr = (IpAddr::V6(Ipv6Addr::LOCALHOST), 50051);
@@ -59,29 +44,12 @@ async fn spawn(fut: impl Future<Output = ()> + Send + 'static) {
         Ok()
     }
 } */
-use itertools::Itertools;
 
 impl Insight for InsightServer {
-    async fn hello(self, _: context::Context, name: String) -> String {
-        // let s = self
-        //     .service_states
-        //     .lock()
-        //     .unwrap()
-        //     .iter()
-        //     .map(|s| format!("{:?}", s))
-        //     .join(" ");
-
-        let service_states = self.service_states.lock().unwrap();
-        let services = zip(
-            self.config.service_definitions.iter(),
-            service_states.iter(),
-        )
-        .map(|(def, state)| format!("{}: {:?}", def.service_name, state))
-        .join("\n");
-
-        format!(
-            "Hello, {name}! You are connected XXXX from {}, {services}",
-            self.socket,
-        )
+    async fn get_data(self, _: context::Context) -> Bundle {
+        Bundle {
+            config: self.config.deref().clone(),
+            service_states: self.service_states.lock().unwrap().clone(),
+        }
     }
 }

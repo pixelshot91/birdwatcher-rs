@@ -1,8 +1,16 @@
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
-#[derive(Clone, Deserialize, Serialize)]
-#[cfg_attr(test, derive(PartialEq, Debug))]
+use crate::config::Config;
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Bundle {
+    pub config: Config,
+    pub service_states: Vec<ServiceState>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[cfg_attr(test, derive(PartialEq,))]
 pub struct ServiceDefinition {
     /// Used for logs only
     pub service_name: String,
@@ -18,7 +26,7 @@ pub struct ServiceDefinition {
     pub rise: u32,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub enum ServiceState {
     /// In `Failure` state, count the number of success.
     /// When the number goes above `rise`, switch to `Success` state
