@@ -1,4 +1,4 @@
-use birdwatcher_rs::rpc::common::InsightClient;
+use birdwatcher_rs::{rpc::common::InsightClient, tui};
 use itertools::Itertools as _;
 use std::{iter::zip, net::SocketAddr, str::FromStr, time::Duration};
 use tarpc::{
@@ -8,7 +8,7 @@ use tarpc::{
 };
 
 #[tokio::main(flavor = "current_thread")]
-async fn main() -> anyhow::Result<()> {
+async fn main() -> color_eyre::Result<()> {
     let mut transport = tarpc::serde_transport::tcp::connect(
         SocketAddr::from_str("[::1]:50051").unwrap(),
         Json::default,
@@ -22,19 +22,25 @@ async fn main() -> anyhow::Result<()> {
     // tokio::time::sleep(Duration::from_secs(10)).await;
     let mut interval = tokio::time::interval(Duration::from_secs(1));
 
-    loop {
-        let res = client.get_data(context::current()).await;
+    // loop {
+    //     let res = client.get_data(context::current()).await;
 
-        let bundle = res.unwrap();
+    //     let bundle = res.unwrap();
 
-        let services = zip(
-            bundle.config.service_definitions.iter(),
-            bundle.service_states.iter(),
-        )
-        .map(|(def, state)| format!("{}: {:?}", def.service_name, state))
-        .join("\n");
+    //     let services = zip(
+    //         bundle.config.service_definitions.iter(),
+    //         bundle.service_states.iter(),
+    //     )
+    //     .map(|(def, state)| format!("{}: {:?}", def.service_name, state))
+    //     .join("\n");
 
-        println!("res = {}", services);
-        interval.tick().await;
-    }
+    //     println!("res = {}", services);
+    //     interval.tick().await;
+    // }
+
+    color_eyre::install()?;
+    let terminal = ratatui::init();
+    let app_result = tui::table::App::new().run(terminal);
+    ratatui::restore();
+    app_result
 }
