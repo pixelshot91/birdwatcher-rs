@@ -111,8 +111,8 @@ impl Data {
 pub struct App {
     state: TableState,
     // items: Vec<Data>,
-    // bundle: Arc<Mutex<Option<Bundle>>>,
-    bundle: Arc<Mutex<String>>,
+    bundle: Arc<Mutex<Option<Bundle>>>,
+    // bundle: Arc<Mutex<String>>,
     longest_item_lens: (u16, u16, u16), // order is (name, address, email)
     scroll_state: ScrollbarState,
     colors: TableColors,
@@ -120,7 +120,7 @@ pub struct App {
 }
 
 impl App {
-    pub fn new(bundle: Arc<Mutex<String>>) -> Self {
+    pub fn new(bundle: Arc<Mutex<Option<Bundle>>>) -> Self {
         let data_vec = generate_fake_names();
         Self {
             state: TableState::default().with_selected(0),
@@ -186,7 +186,7 @@ impl App {
     pub async fn run(mut self, mut terminal: DefaultTerminal) -> Result<()> {
         let mut reader = event::EventStream::new();
 
-        loop {
+        /* loop {
             {
                 // let s = self.bundle.lock().unwrap();
                 // let s: String = s.clone();
@@ -238,11 +238,34 @@ impl App {
                 }
             } */
         }
-        Ok(())
-        /* loop {
+        Ok(()) */
+        loop {
             terminal.draw(|frame| self.draw(frame))?;
 
-            if let Event::Key(key) = event::read()? {
+            let delay = Delay::new(Duration::from_millis(1_000)).fuse();
+            let event = reader.next().fuse();
+
+            select! {
+                _ = delay => {  },
+                maybe_event = event => {
+                    match maybe_event {
+                        Some(Ok(event)) => {
+                            if let Event::Key(key) = event {
+                                if key.kind == KeyEventKind::Press {
+                                    match key.code {
+                                        KeyCode::Char('q') | KeyCode::Esc => return Ok(()),
+                                        _ => {}
+                                    }
+                                }
+                            }
+                        }
+                        Some(Err(e)) => println!("Error: {:?}\r", e),
+                        None => break,
+                    }
+                }
+            };
+
+            /* if let Event::Key(key) = event::read()? {
                 if key.kind == KeyEventKind::Press {
                     let shift_pressed = key.modifiers.contains(KeyModifiers::SHIFT);
                     match key.code {
@@ -258,8 +281,9 @@ impl App {
                         _ => {}
                     }
                 }
-            }
-        } */
+            } */
+        }
+        Ok(())
     }
 
     fn draw(&mut self, frame: &mut Frame) {
@@ -267,14 +291,9 @@ impl App {
 
         let bundle = {
             let b = self.bundle.lock().unwrap();
-            frame.render_widget(
-                Paragraph::new(format!("dsa {:?} {:?}", b, SystemTime::now())),
-                frame.area(),
-            );
             b.clone()
         };
-        return;
-        /* match bundle {
+        match bundle {
             None => {
                 let p = Paragraph::new(format!(
                     "Connection failed {:?}",
@@ -290,7 +309,7 @@ impl App {
                 self.render_scrollbar(frame, rects[0]);
                 self.render_footer(frame, rects[1]);
             }
-        } */
+        }
     }
 
     fn render_table(&mut self, frame: &mut Frame, area: Rect, bundle: Bundle) {
@@ -382,14 +401,6 @@ impl App {
             );
         frame.render_widget(info_footer, area);
     }
-}
-
-fn generate_fake_names() -> Vec<Data> {
-    vec![Data {
-        name: "MyName".to_string(),
-        address: "add".to_string(),
-        email: "email".to_string(),
-    }]
 }
 
 fn constraint_len_calculator(items: &[Data]) -> (u16, u16, u16) {
