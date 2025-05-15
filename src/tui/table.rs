@@ -14,6 +14,7 @@
 //! [examples readme]: https://github.com/ratatui/ratatui/blob/main/examples/README.md
 
 use std::{
+    iter::zip,
     sync::{Arc, Mutex},
     time::{Duration, SystemTime},
 };
@@ -113,19 +114,18 @@ pub struct App {
     // items: Vec<Data>,
     bundle: Arc<Mutex<Option<Bundle>>>,
     // bundle: Arc<Mutex<String>>,
-    longest_item_lens: (u16, u16, u16), // order is (name, address, email)
-    scroll_state: ScrollbarState,
+    // longest_item_lens: (u16, u16, u16), // order is (name, address, email)
+    // scroll_state: ScrollbarState,
     colors: TableColors,
     color_index: usize,
 }
 
 impl App {
     pub fn new(bundle: Arc<Mutex<Option<Bundle>>>) -> Self {
-        let data_vec = generate_fake_names();
         Self {
             state: TableState::default().with_selected(0),
-            longest_item_lens: constraint_len_calculator(&data_vec),
-            scroll_state: ScrollbarState::new((data_vec.len() - 1) * ITEM_HEIGHT),
+            // longest_item_lens: constraint_len_calculator(&data_vec),
+            // scroll_state: ScrollbarState::new((data_vec.len() - 1) * ITEM_HEIGHT),
             colors: TableColors::new(&PALETTES[0]),
             color_index: 0,
             // items: data_vec,
@@ -186,59 +186,6 @@ impl App {
     pub async fn run(mut self, mut terminal: DefaultTerminal) -> Result<()> {
         let mut reader = event::EventStream::new();
 
-        /* loop {
-            {
-                // let s = self.bundle.lock().unwrap();
-                // let s: String = s.clone();
-                println!("{:?}", SystemTime::now());
-                // println!("{:?}, bundle = {:?}", SystemTime::now(), s);
-            }
-
-            let mut delay = Delay::new(Duration::from_millis(1_000)).fuse();
-            let mut event = reader.next().fuse();
-
-            select! {
-                _ = delay => { println!(".\r"); },
-                maybe_event = event => {
-                    match maybe_event {
-                        Some(Ok(event)) => {
-                            println!("Event::{:?}\r", event);
-
-                            if let Event::Key(key) = event {
-                                if key.kind == KeyEventKind::Press {
-                                    match key.code {
-                                        KeyCode::Char('q') | KeyCode::Esc => return Ok(()),
-                                        _ => {}
-                                    }
-                                }
-                            }
-                            /*
-                            if event == Event::Key(KeyCode::Char('c').into()) {
-                                println!("Cursor position: {:?}\r", position());
-                            }
-
-                            if event == Event::Key(KeyCode::Esc.into()) {
-                                break;
-                            } */
-                        }
-                        Some(Err(e)) => println!("Error: {:?}\r", e),
-                        None => break,
-                    }
-                }
-            };
-
-            /* if let Ok(true) = event::poll(Duration::from_millis(500)) {
-                if let Event::Key(key) = event::read()? {
-                    if key.kind == KeyEventKind::Press {
-                        match key.code {
-                            KeyCode::Char('q') | KeyCode::Esc => return Ok(()),
-                            _ => {}
-                        }
-                    }
-                }
-            } */
-        }
-        Ok(()) */
         loop {
             terminal.draw(|frame| self.draw(frame))?;
 
@@ -302,11 +249,13 @@ impl App {
                 frame.render_widget(p, frame.area());
             }
             Some(bundle) => {
+                // self.reset_scrollbar(bundle.service_states.len());
+                // if bundle.service_states.len() != self.scroll_state.content_length(content_length)
                 let vertical = &Layout::vertical([Constraint::Min(5), Constraint::Length(4)]);
                 let rects = vertical.split(frame.area());
 
                 self.render_table(frame, rects[0], bundle);
-                self.render_scrollbar(frame, rects[0]);
+                // self.render_scrollbar(frame, rects[0]);
                 self.render_footer(frame, rects[1]);
             }
         }
@@ -331,15 +280,20 @@ impl App {
             .style(header_style)
             .height(1);
 
-        let rows = bundle.service_states.iter().enumerate().map(|(i, data)| {
+        let services = zip(
+            bundle.config.service_definitions.iter(),
+            bundle.service_states.iter(),
+        );
+
+        let rows = services.enumerate().map(|(i, data)| {
             let color = match i % 2 {
                 0 => self.colors.normal_row_color,
                 _ => self.colors.alt_row_color,
             };
             let item = [
-                &format!("{:?}", data),
-                &format!("{:?}", data),
-                &format!("{:?}", data),
+                &format!("{}", data.0.function_name),
+                &format!("{}s", data.0.interval.as_secs()),
+                &format!("{:?}", data.1),
             ];
             item.into_iter()
                 .map(|content| Cell::from(Text::from(format!("\n{content}\n"))))
@@ -350,12 +304,12 @@ impl App {
         let bar = " █ ";
         let t = Table::new(
             rows,
-            [
-                // + 1 is for padding.
-                Constraint::Length(self.longest_item_lens.0 + 1),
-                Constraint::Min(self.longest_item_lens.1 + 1),
-                Constraint::Min(self.longest_item_lens.2),
-            ],
+            Constraint::from_fills([1, 1, 1]), /*  [
+                                                   // + 1 is for padding.
+                                                   Constraint::Length(self.longest_item_lens.0 + 1),
+                                                   Constraint::Min(self.longest_item_lens.1 + 1),
+                                                   Constraint::Min(self.longest_item_lens.2),
+                                               ] */
         )
         .header(header)
         .row_highlight_style(selected_row_style)
@@ -372,7 +326,7 @@ impl App {
         frame.render_stateful_widget(t, area, &mut self.state);
     }
 
-    fn render_scrollbar(&mut self, frame: &mut Frame, area: Rect) {
+    /* fn render_scrollbar(&mut self, frame: &mut Frame, area: Rect) {
         frame.render_stateful_widget(
             Scrollbar::default()
                 .orientation(ScrollbarOrientation::VerticalRight)
@@ -384,7 +338,7 @@ impl App {
             }),
             &mut self.scroll_state,
         );
-    }
+    } */
 
     fn render_footer(&self, frame: &mut Frame, area: Rect) {
         let info_footer = Paragraph::new(Text::from_iter(INFO_TEXT))
@@ -401,6 +355,12 @@ impl App {
             );
         frame.render_widget(info_footer, area);
     }
+
+    /* fn reset_scrollbar(&self, nb_services: usize) {
+        if nb_services != self.scroll_state.content_length() {
+            self.scroll_state = ScrollbarState::new(nb_services * ITEM_HEIGHT)
+        }
+    } */
 }
 
 fn constraint_len_calculator(items: &[Data]) -> (u16, u16, u16) {

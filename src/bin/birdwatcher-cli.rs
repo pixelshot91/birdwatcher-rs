@@ -6,6 +6,7 @@ use std::sync::{Arc, Mutex};
 use std::time::SystemTime;
 use std::{net::SocketAddr, str::FromStr, time::Duration};
 use tarpc::{client, context, tokio_serde::formats::Json};
+use tokio::task::JoinSet;
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> color_eyre::Result<()> {
@@ -13,42 +14,58 @@ async fn main() -> color_eyre::Result<()> {
 
     let bundle_for_tarp = bundle.clone();
 
-    tokio::spawn(async {
-        let bundle = bundle_for_tarp;
-        let mut transport = tarpc::serde_transport::tcp::connect(
-            SocketAddr::from_str("[::1]:50051").unwrap(),
-            Json::default,
-        );
-        transport.config_mut().max_frame_length(usize::MAX);
+    let mut set = JoinSet::new();
 
-        let client =
-            InsightClient::new(client::Config::default(), transport.await.unwrap()).spawn();
+    set.spawn(async {
+        let bundle = bundle_for_tarp;
 
         let mut interval = tokio::time::interval(Duration::from_secs(1));
 
-        loop {
-            let res = client.get_data(context::current()).await;
+        'connection: loop {
+            let mut transport = tarpc::serde_transport::tcp::connect(
+                SocketAddr::from_str("[::1]:50051").unwrap(),
+                Json::default,
+            );
+            transport.config_mut().max_frame_length(usize::MAX);
+            match transport.await {
+                Err(_) => {
+                    interval.tick().await;
+                    continue 'connection;
+                }
 
-            let received_bundle = res.unwrap();
-            let services = zip(
-                received_bundle.config.service_definitions.iter(),
-                received_bundle.service_states.iter(),
-            )
-            .map(|(def, state)| format!("{}: {:?}", def.service_name, state))
-            .join("\n");
+                Ok(t) => {
+                    let client = InsightClient::new(client::Config::default(), t).spawn();
 
-            // println!("res = {}", services);
-            {
-                let mut bundle = bundle.lock().unwrap();
-                // bundle.replace(received_bundle);
-                *bundle = Some(received_bundle);
-            }
+                    'get_bundle: loop {
+                        let res = client.get_data(context::current()).await;
 
-            interval.tick().await;
+                        let received_bundle = res.ok();
+                        let should_reset_connection = received_bundle.is_none();
+                        /* let services = zip(
+                            received_bundle.config.service_definitions.iter(),
+                            received_bundle.service_states.iter(),
+                        )
+                        .map(|(def, state)| format!("{}: {:?}", def.service_name, state))
+                        .join("\n"); */
+
+                        // println!("res = {}", services);
+                        {
+                            let mut bundle = bundle.lock().unwrap();
+                            *bundle = received_bundle;
+                        }
+
+                        if should_reset_connection {
+                            continue 'connection;
+                        }
+
+                        interval.tick().await;
+                    }
+                }
+            };
         }
     });
 
-    let res = tokio::spawn(async {
+    set.spawn(async {
         color_eyre::install()?;
         let terminal = ratatui::init();
         let app_result = tui::table::App::new(bundle).run(terminal).await;
@@ -56,5 +73,5 @@ async fn main() -> color_eyre::Result<()> {
         app_result
     });
 
-    res.await?
+    set.join_next().await.unwrap().unwrap()
 }
