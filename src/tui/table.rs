@@ -13,8 +13,14 @@
 //! [examples]: https://github.com/ratatui/ratatui/blob/main/examples
 //! [examples readme]: https://github.com/ratatui/ratatui/blob/main/examples/README.md
 
+use std::{
+    sync::{Arc, Mutex},
+    time::{Duration, SystemTime},
+};
+
 use color_eyre::Result;
 use crossterm::event::KeyModifiers;
+use futures::{FutureExt as _, StreamExt as _};
 use itertools::Itertools;
 use ratatui::{
     crossterm::event::{self, Event, KeyCode, KeyEventKind},
@@ -28,7 +34,12 @@ use ratatui::{
     DefaultTerminal, Frame,
 };
 use style::palette::tailwind;
+use tokio::select;
 use unicode_width::UnicodeWidthStr;
+
+use futures_timer::Delay;
+
+use crate::service::Bundle;
 
 const PALETTES: [tailwind::Palette; 4] = [
     tailwind::BLUE,
@@ -99,7 +110,9 @@ impl Data {
 
 pub struct App {
     state: TableState,
-    items: Vec<Data>,
+    // items: Vec<Data>,
+    // bundle: Arc<Mutex<Option<Bundle>>>,
+    bundle: Arc<Mutex<String>>,
     longest_item_lens: (u16, u16, u16), // order is (name, address, email)
     scroll_state: ScrollbarState,
     colors: TableColors,
@@ -107,7 +120,7 @@ pub struct App {
 }
 
 impl App {
-    pub fn new() -> Self {
+    pub fn new(bundle: Arc<Mutex<String>>) -> Self {
         let data_vec = generate_fake_names();
         Self {
             state: TableState::default().with_selected(0),
@@ -115,37 +128,38 @@ impl App {
             scroll_state: ScrollbarState::new((data_vec.len() - 1) * ITEM_HEIGHT),
             colors: TableColors::new(&PALETTES[0]),
             color_index: 0,
-            items: data_vec,
+            // items: data_vec,
+            bundle,
         }
     }
     pub fn next_row(&mut self) {
-        let i = match self.state.selected() {
-            Some(i) => {
-                if i >= self.items.len() - 1 {
-                    0
-                } else {
-                    i + 1
-                }
-            }
-            None => 0,
-        };
-        self.state.select(Some(i));
-        self.scroll_state = self.scroll_state.position(i * ITEM_HEIGHT);
+        // let i = match self.state.selected() {
+        //     Some(i) => {
+        //         if i >= self.items.len() - 1 {
+        //             0
+        //         } else {
+        //             i + 1
+        //         }
+        //     }
+        //     None => 0,
+        // };
+        // self.state.select(Some(i));
+        // self.scroll_state = self.scroll_state.position(i * ITEM_HEIGHT);
     }
 
     pub fn previous_row(&mut self) {
-        let i = match self.state.selected() {
-            Some(i) => {
-                if i == 0 {
-                    self.items.len() - 1
-                } else {
-                    i - 1
-                }
-            }
-            None => 0,
-        };
-        self.state.select(Some(i));
-        self.scroll_state = self.scroll_state.position(i * ITEM_HEIGHT);
+        // let i = match self.state.selected() {
+        //     Some(i) => {
+        //         if i == 0 {
+        //             self.items.len() - 1
+        //         } else {
+        //             i - 1
+        //         }
+        //     }
+        //     None => 0,
+        // };
+        // self.state.select(Some(i));
+        // self.scroll_state = self.scroll_state.position(i * ITEM_HEIGHT);
     }
 
     pub fn next_column(&mut self) {
@@ -169,8 +183,63 @@ impl App {
         self.colors = TableColors::new(&PALETTES[self.color_index]);
     }
 
-    pub fn run(mut self, mut terminal: DefaultTerminal) -> Result<()> {
+    pub async fn run(mut self, mut terminal: DefaultTerminal) -> Result<()> {
+        let mut reader = event::EventStream::new();
+
         loop {
+            {
+                // let s = self.bundle.lock().unwrap();
+                // let s: String = s.clone();
+                println!("{:?}", SystemTime::now());
+                // println!("{:?}, bundle = {:?}", SystemTime::now(), s);
+            }
+
+            let mut delay = Delay::new(Duration::from_millis(1_000)).fuse();
+            let mut event = reader.next().fuse();
+
+            select! {
+                _ = delay => { println!(".\r"); },
+                maybe_event = event => {
+                    match maybe_event {
+                        Some(Ok(event)) => {
+                            println!("Event::{:?}\r", event);
+
+                            if let Event::Key(key) = event {
+                                if key.kind == KeyEventKind::Press {
+                                    match key.code {
+                                        KeyCode::Char('q') | KeyCode::Esc => return Ok(()),
+                                        _ => {}
+                                    }
+                                }
+                            }
+                            /*
+                            if event == Event::Key(KeyCode::Char('c').into()) {
+                                println!("Cursor position: {:?}\r", position());
+                            }
+
+                            if event == Event::Key(KeyCode::Esc.into()) {
+                                break;
+                            } */
+                        }
+                        Some(Err(e)) => println!("Error: {:?}\r", e),
+                        None => break,
+                    }
+                }
+            };
+
+            /* if let Ok(true) = event::poll(Duration::from_millis(500)) {
+                if let Event::Key(key) = event::read()? {
+                    if key.kind == KeyEventKind::Press {
+                        match key.code {
+                            KeyCode::Char('q') | KeyCode::Esc => return Ok(()),
+                            _ => {}
+                        }
+                    }
+                }
+            } */
+        }
+        Ok(())
+        /* loop {
             terminal.draw(|frame| self.draw(frame))?;
 
             if let Event::Key(key) = event::read()? {
@@ -190,21 +259,41 @@ impl App {
                     }
                 }
             }
-        }
+        } */
     }
 
     fn draw(&mut self, frame: &mut Frame) {
-        let vertical = &Layout::vertical([Constraint::Min(5), Constraint::Length(4)]);
-        let rects = vertical.split(frame.area());
-
         self.set_colors();
 
-        self.render_table(frame, rects[0]);
-        self.render_scrollbar(frame, rects[0]);
-        self.render_footer(frame, rects[1]);
+        let bundle = {
+            let b = self.bundle.lock().unwrap();
+            frame.render_widget(
+                Paragraph::new(format!("dsa {:?} {:?}", b, SystemTime::now())),
+                frame.area(),
+            );
+            b.clone()
+        };
+        return;
+        /* match bundle {
+            None => {
+                let p = Paragraph::new(format!(
+                    "Connection failed {:?}",
+                    std::time::SystemTime::now()
+                ));
+                frame.render_widget(p, frame.area());
+            }
+            Some(bundle) => {
+                let vertical = &Layout::vertical([Constraint::Min(5), Constraint::Length(4)]);
+                let rects = vertical.split(frame.area());
+
+                self.render_table(frame, rects[0], bundle);
+                self.render_scrollbar(frame, rects[0]);
+                self.render_footer(frame, rects[1]);
+            }
+        } */
     }
 
-    fn render_table(&mut self, frame: &mut Frame, area: Rect) {
+    fn render_table(&mut self, frame: &mut Frame, area: Rect, bundle: Bundle) {
         let header_style = Style::default()
             .fg(self.colors.header_fg)
             .bg(self.colors.header_bg);
@@ -222,12 +311,17 @@ impl App {
             .collect::<Row>()
             .style(header_style)
             .height(1);
-        let rows = self.items.iter().enumerate().map(|(i, data)| {
+
+        let rows = bundle.service_states.iter().enumerate().map(|(i, data)| {
             let color = match i % 2 {
                 0 => self.colors.normal_row_color,
                 _ => self.colors.alt_row_color,
             };
-            let item = data.ref_array();
+            let item = [
+                &format!("{:?}", data),
+                &format!("{:?}", data),
+                &format!("{:?}", data),
+            ];
             item.into_iter()
                 .map(|content| Cell::from(Text::from(format!("\n{content}\n"))))
                 .collect::<Row>()
@@ -321,32 +415,4 @@ fn constraint_len_calculator(items: &[Data]) -> (u16, u16, u16) {
 
     #[allow(clippy::cast_possible_truncation)]
     (name_len as u16, address_len as u16, email_len as u16)
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::Data;
-
-    #[test]
-    fn constraint_len_calculator() {
-        let test_data = vec![
-            Data {
-                name: "Emirhan Tala".to_string(),
-                address: "Cambridgelaan 6XX\n3584 XX Utrecht".to_string(),
-                email: "tala.emirhan@gmail.com".to_string(),
-            },
-            Data {
-                name: "thistextis26characterslong".to_string(),
-                address: "this line is 31 characters long\nbottom line is 33 characters long"
-                    .to_string(),
-                email: "thisemailis40caharacterslong@ratatui.com".to_string(),
-            },
-        ];
-        let (longest_name_len, longest_address_len, longest_email_len) =
-            crate::constraint_len_calculator(&test_data);
-
-        assert_eq!(26, longest_name_len);
-        assert_eq!(33, longest_address_len);
-        assert_eq!(40, longest_email_len);
-    }
 }

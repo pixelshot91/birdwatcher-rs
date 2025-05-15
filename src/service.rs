@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use crate::config::Config;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Bundle {
     pub config: Config,
     pub service_states: Vec<ServiceState>,
