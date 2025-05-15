@@ -1,9 +1,5 @@
-use birdwatcher_rs::service::Bundle;
-use birdwatcher_rs::{rpc::common::InsightClient, tui};
-use itertools::Itertools as _;
-use std::iter::zip;
+use birdwatcher_rs::{rpc::common::InsightClient, service::Bundle, tui};
 use std::sync::{Arc, Mutex};
-use std::time::SystemTime;
 use std::{net::SocketAddr, str::FromStr, time::Duration};
 use tarpc::{client, context, tokio_serde::formats::Json};
 use tokio::task::JoinSet;
@@ -36,7 +32,7 @@ async fn main() -> color_eyre::Result<()> {
                 Ok(t) => {
                     let client = InsightClient::new(client::Config::default(), t).spawn();
 
-                    'get_bundle: loop {
+                    loop {
                         let res = client.get_data(context::current()).await;
 
                         let received_bundle = res.ok();

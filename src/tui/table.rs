@@ -16,44 +16,32 @@
 use std::{
     iter::zip,
     sync::{Arc, Mutex},
-    time::{Duration, SystemTime},
+    time::Duration,
 };
 
 use color_eyre::Result;
-use crossterm::event::KeyModifiers;
 use futures::{FutureExt as _, StreamExt as _};
-use itertools::Itertools;
 use ratatui::{
     crossterm::event::{self, Event, KeyCode, KeyEventKind},
-    layout::{Constraint, Layout, Margin, Rect},
+    layout::{Constraint, Layout, Rect},
     style::{self, Color, Modifier, Style, Stylize},
     text::Text,
-    widgets::{
-        Block, BorderType, Cell, HighlightSpacing, Paragraph, Row, Scrollbar, ScrollbarOrientation,
-        ScrollbarState, Table, TableState,
-    },
+    widgets::{Block, BorderType, Cell, HighlightSpacing, Paragraph, Row, Table, TableState},
     DefaultTerminal, Frame,
 };
 use style::palette::tailwind;
 use tokio::select;
-use unicode_width::UnicodeWidthStr;
 
 use futures_timer::Delay;
 
 use crate::service::Bundle;
 
-const PALETTES: [tailwind::Palette; 4] = [
-    tailwind::BLUE,
-    tailwind::EMERALD,
-    tailwind::INDIGO,
-    tailwind::RED,
-];
 const INFO_TEXT: [&str; 2] = [
     "(Esc) quit | (↑) move up | (↓) move down | (←) move left | (→) move right",
     "(Shift + →) next color | (Shift + ←) previous color",
 ];
 
-const ITEM_HEIGHT: usize = 4;
+// const ITEM_HEIGHT: usize = 4;
 
 struct TableColors {
     buffer_bg: Color,
@@ -85,30 +73,6 @@ impl TableColors {
     }
 }
 
-struct Data {
-    name: String,
-    address: String,
-    email: String,
-}
-
-impl Data {
-    const fn ref_array(&self) -> [&String; 3] {
-        [&self.name, &self.address, &self.email]
-    }
-
-    fn name(&self) -> &str {
-        &self.name
-    }
-
-    fn address(&self) -> &str {
-        &self.address
-    }
-
-    fn email(&self) -> &str {
-        &self.email
-    }
-}
-
 pub struct App {
     state: TableState,
     // items: Vec<Data>,
@@ -117,7 +81,6 @@ pub struct App {
     // longest_item_lens: (u16, u16, u16), // order is (name, address, email)
     // scroll_state: ScrollbarState,
     colors: TableColors,
-    color_index: usize,
 }
 
 impl App {
@@ -126,68 +89,50 @@ impl App {
             state: TableState::default().with_selected(0),
             // longest_item_lens: constraint_len_calculator(&data_vec),
             // scroll_state: ScrollbarState::new((data_vec.len() - 1) * ITEM_HEIGHT),
-            colors: TableColors::new(&PALETTES[0]),
-            color_index: 0,
             // items: data_vec,
+            colors: TableColors::new(&tailwind::GRAY),
             bundle,
         }
     }
-    pub fn next_row(&mut self) {
-        // let i = match self.state.selected() {
-        //     Some(i) => {
-        //         if i >= self.items.len() - 1 {
-        //             0
-        //         } else {
-        //             i + 1
-        //         }
-        //     }
-        //     None => 0,
-        // };
-        // self.state.select(Some(i));
+    pub fn next_row(&mut self, bundle: &Bundle) {
+        let i = match self.state.selected() {
+            Some(i) => {
+                if i >= bundle.service_states.len() - 1 {
+                    0
+                } else {
+                    i + 1
+                }
+            }
+            None => 0,
+        };
+        self.state.select(Some(i));
         // self.scroll_state = self.scroll_state.position(i * ITEM_HEIGHT);
     }
 
-    pub fn previous_row(&mut self) {
-        // let i = match self.state.selected() {
-        //     Some(i) => {
-        //         if i == 0 {
-        //             self.items.len() - 1
-        //         } else {
-        //             i - 1
-        //         }
-        //     }
-        //     None => 0,
-        // };
-        // self.state.select(Some(i));
+    pub fn previous_row(&mut self, bundle: &Bundle) {
+        let i = match self.state.selected() {
+            Some(i) => {
+                if i == 0 {
+                    bundle.service_states.len() - 1
+                } else {
+                    i - 1
+                }
+            }
+            None => 0,
+        };
+        self.state.select(Some(i));
         // self.scroll_state = self.scroll_state.position(i * ITEM_HEIGHT);
-    }
-
-    pub fn next_column(&mut self) {
-        self.state.select_next_column();
-    }
-
-    pub fn previous_column(&mut self) {
-        self.state.select_previous_column();
-    }
-
-    pub fn next_color(&mut self) {
-        self.color_index = (self.color_index + 1) % PALETTES.len();
-    }
-
-    pub fn previous_color(&mut self) {
-        let count = PALETTES.len();
-        self.color_index = (self.color_index + count - 1) % count;
-    }
-
-    pub fn set_colors(&mut self) {
-        self.colors = TableColors::new(&PALETTES[self.color_index]);
     }
 
     pub async fn run(mut self, mut terminal: DefaultTerminal) -> Result<()> {
         let mut reader = event::EventStream::new();
 
         loop {
-            terminal.draw(|frame| self.draw(frame))?;
+            let bundle = {
+                let b = self.bundle.lock().unwrap();
+                b.clone()
+            };
+            terminal.draw(|frame| self.draw(frame, &bundle))?;
 
             let delay = Delay::new(Duration::from_millis(1_000)).fuse();
             let event = reader.next().fuse();
@@ -199,8 +144,11 @@ impl App {
                         Some(Ok(event)) => {
                             if let Event::Key(key) = event {
                                 if key.kind == KeyEventKind::Press {
+
                                     match key.code {
                                         KeyCode::Char('q') | KeyCode::Esc => return Ok(()),
+                                        KeyCode::Char('j') | KeyCode::Down if bundle.is_some() => self.next_row(&bundle.unwrap()),
+                                        KeyCode::Char('k') | KeyCode::Up  if bundle.is_some() => self.previous_row(&bundle.unwrap()),
                                         _ => {}
                                     }
                                 }
@@ -233,13 +181,7 @@ impl App {
         Ok(())
     }
 
-    fn draw(&mut self, frame: &mut Frame) {
-        self.set_colors();
-
-        let bundle = {
-            let b = self.bundle.lock().unwrap();
-            b.clone()
-        };
+    fn draw(&mut self, frame: &mut Frame, bundle: &Option<Bundle>) {
         match bundle {
             None => {
                 let p = Paragraph::new(format!(
@@ -261,7 +203,7 @@ impl App {
         }
     }
 
-    fn render_table(&mut self, frame: &mut Frame, area: Rect, bundle: Bundle) {
+    fn render_table(&mut self, frame: &mut Frame, area: Rect, bundle: &Bundle) {
         let header_style = Style::default()
             .fg(self.colors.header_fg)
             .bg(self.colors.header_bg);
@@ -273,7 +215,7 @@ impl App {
             .add_modifier(Modifier::REVERSED)
             .fg(self.colors.selected_cell_style_fg);
 
-        let header = ["Name", "Address", "Email"]
+        let header = ["Fn name", "Interval", "State"]
             .into_iter()
             .map(Cell::from)
             .collect::<Row>()
@@ -304,7 +246,7 @@ impl App {
         let bar = " █ ";
         let t = Table::new(
             rows,
-            Constraint::from_fills([1, 1, 1]), /*  [
+            Constraint::from_fills([1, 1, 3]), /*  [
                                                    // + 1 is for padding.
                                                    Constraint::Length(self.longest_item_lens.0 + 1),
                                                    Constraint::Min(self.longest_item_lens.1 + 1),
@@ -363,7 +305,7 @@ impl App {
     } */
 }
 
-fn constraint_len_calculator(items: &[Data]) -> (u16, u16, u16) {
+/* fn constraint_len_calculator(items: &[Data]) -> (u16, u16, u16) {
     let name_len = items
         .iter()
         .map(Data::name)
@@ -386,4 +328,4 @@ fn constraint_len_calculator(items: &[Data]) -> (u16, u16, u16) {
 
     #[allow(clippy::cast_possible_truncation)]
     (name_len as u16, address_len as u16, email_len as u16)
-}
+} */
