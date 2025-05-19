@@ -4,14 +4,14 @@ use crate::{
     service::{Bundle, ServiceState},
 };
 
-use std::{net::SocketAddr, ops::Deref, sync::Arc};
+use std::{net::SocketAddr, ops::Deref, rc::Rc, sync::Arc};
 use tarpc::context;
 
 // This is the type that implements the generated World trait. It is the business logic
 // and is used to start the server.
 #[derive(Clone)]
 pub struct InsightServer {
-    pub socket: SocketAddr,
+    // pub socket: Rc<tokio::net::unix::SocketAddr>,
     pub service_states: Arc<std::sync::Mutex<Vec<ServiceState>>>,
     pub config: Arc<Config>,
 }
