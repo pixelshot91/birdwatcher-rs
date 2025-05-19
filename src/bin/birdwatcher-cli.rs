@@ -1,11 +1,41 @@
 use birdwatcher_rs::{rpc::common::InsightClient, service::Bundle, tui};
+use clap::{command, Parser, Subcommand};
 use std::sync::{Arc, Mutex};
 use std::{net::SocketAddr, str::FromStr, time::Duration};
 use tarpc::{client, context, tokio_serde::formats::Json};
 use tokio::task::JoinSet;
 
+#[derive(Parser, Debug)] // requires `derive` feature
+struct CliArg {
+    #[command(subcommand)]
+    command: Commands,
+}
+
+#[derive(Subcommand, Debug)]
+enum Commands {
+    /// Output a snaphot of the services state
+    Json {},
+    /// Show a live view of the services state
+    Tui {},
+}
+
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> color_eyre::Result<()> {
+    let args = CliArg::parse();
+    if let Commands::Json {} = args.command {
+        let mut transport = tarpc::serde_transport::tcp::connect(
+            SocketAddr::from_str("[::1]:50051").unwrap(),
+            Json::default,
+        );
+        transport.config_mut().max_frame_length(usize::MAX);
+        let client = InsightClient::new(client::Config::default(), transport.await?).spawn();
+        let res = client.get_data(context::current()).await?;
+
+        dbg!(res);
+
+        return Ok(());
+    }
+
     let bundle = Arc::new(Mutex::<Option<Bundle>>::new(None));
 
     let bundle_for_tarp = bundle.clone();
