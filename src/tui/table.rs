@@ -36,11 +36,6 @@ use futures_timer::Delay;
 
 use crate::service::Bundle;
 
-const INFO_TEXT: [&str; 2] = [
-    "(Esc) quit | (↑) move up | (↓) move down | (←) move left | (→) move right",
-    "(Shift + →) next color | (Shift + ←) previous color",
-];
-
 // const ITEM_HEIGHT: usize = 4;
 
 struct TableColors {
@@ -159,24 +154,6 @@ impl App {
                     }
                 }
             };
-
-            /* if let Event::Key(key) = event::read()? {
-                if key.kind == KeyEventKind::Press {
-                    let shift_pressed = key.modifiers.contains(KeyModifiers::SHIFT);
-                    match key.code {
-                        KeyCode::Char('q') | KeyCode::Esc => return Ok(()),
-                        KeyCode::Char('j') | KeyCode::Down => self.next_row(),
-                        KeyCode::Char('k') | KeyCode::Up => self.previous_row(),
-                        KeyCode::Char('l') | KeyCode::Right if shift_pressed => self.next_color(),
-                        KeyCode::Char('h') | KeyCode::Left if shift_pressed => {
-                            self.previous_color();
-                        }
-                        KeyCode::Char('l') | KeyCode::Right => self.next_column(),
-                        KeyCode::Char('h') | KeyCode::Left => self.previous_column(),
-                        _ => {}
-                    }
-                }
-            } */
         }
         Ok(())
     }
@@ -283,6 +260,8 @@ impl App {
     } */
 
     fn render_footer(&self, frame: &mut Frame, area: Rect) {
+        const INFO_TEXT: [&str; 1] = ["(Esc) quit | (↑) move up | (↓) move down"];
+
         let info_footer = Paragraph::new(Text::from_iter(INFO_TEXT))
             .style(
                 Style::new()
