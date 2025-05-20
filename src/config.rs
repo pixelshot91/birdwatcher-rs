@@ -118,7 +118,7 @@ impl Config {
 
 #[cfg(test)]
 mod test {
-    use std::time::Duration;
+    use std::{fs::FileType, time::Duration};
 
     use crate::{config::GeneratedFile, service::ServiceDefinition};
 
@@ -185,6 +185,17 @@ rise = 5
         let config =
             Config::load_from_file(std::path::Path::new("example/birdwatcher.conf")).unwrap();
         assert_eq!(config.service_definitions.len(), 2);
+    }
+
+    #[test]
+    fn all_example_config_works() {
+        std::fs::read_dir("example/").unwrap().for_each(|c| {
+            let f = c.unwrap();
+            if f.file_type().unwrap().is_file() {
+                println!("checking {}", &f.path().display());
+                Config::load_from_file(&f.path()).unwrap();
+            }
+        });
     }
 
     #[test]
