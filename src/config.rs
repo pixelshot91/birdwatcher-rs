@@ -50,7 +50,10 @@ mod raw {
     }
 }
 
-use anyhow::{Context, Result};
+use color_eyre::{
+    eyre::{Context as _, ContextCompat},
+    Result,
+};
 use serde::{Deserialize, Serialize};
 use std::{path::Path, time::Duration};
 
@@ -75,7 +78,7 @@ pub struct Config {
 impl Config {
     pub fn load_from_file(filepath: &Path) -> Result<Config> {
         let config_file_content = fs_err::read_to_string(filepath)
-            .with_context(|| format!("Cannot read file {:?}", filepath))?;
+            .wrap_err_with(|| format!("Cannot read file {:?}", filepath))?;
         Config::from_string(config_file_content)
     }
 
@@ -83,7 +86,7 @@ impl Config {
         let raw_config: raw::Config = toml::from_str(&str)?;
 
         let (bird_reload_cmd, bird_reload_args) =
-            raw_config.bird_reload.command.split_first().context("'bird_reload.command' should contain at least one element: the path to the executable to run")?;
+            raw_config.bird_reload.command.split_first().wrap_err("'bird_reload.command' should contain at least one element: the path to the executable to run")?;
 
         Ok(Config {
             generated_file: GeneratedFile { path: raw_config.generated_file.path, function_return_type: raw_config.generated_file.function_return_type.unwrap_or(true) },

@@ -9,7 +9,6 @@ license = "MIT OR Apache-2.0"
 
 [dependencies]
 crossterm = { version = "0.28.1", features = ["event-stream"] }
-anyhow = { version = "1.0.97", features = ["backtrace"] }
 clap = { version = "4.5.33", features = ["derive"] }
 fs-err = "3.1.0"
 itertools = "0.14.0"

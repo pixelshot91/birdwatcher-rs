@@ -15,7 +15,10 @@ use birdwatcher_rs::{
 
 use clap::Parser;
 
-use anyhow::{anyhow, Context, Result};
+use color_eyre::{
+    eyre::{eyre, Context as _},
+    Result,
+};
 
 use futures::prelude::*;
 
@@ -44,7 +47,7 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     let config: Config = Config::load_from_file(&cli.config)
-        .context(format!("Failed to load config file {:?}", cli.config))?;
+        .wrap_err(format!("Failed to load config file {:?}", cli.config))?;
 
     // Contains the only mutable state: a counter for each service
     let service_states: Vec<ServiceState> = config
@@ -234,9 +237,9 @@ async fn main() -> Result<()> {
     let terminated_task: Result<!, tokio::task::JoinError> = join_set
         .join_next()
         .await
-        .ok_or(anyhow!("No tasks in the JoinSet ??"))?;
+        .ok_or(eyre!("No tasks in the JoinSet ??"))?;
     let err = terminated_task.unwrap_err();
-    Err(anyhow!("A task failed: {}", err))
+    Err(eyre!("A task failed: {}", err))
 }
 
 fn write_bird_function(config: &Config, services_states: &[ServiceState]) {
