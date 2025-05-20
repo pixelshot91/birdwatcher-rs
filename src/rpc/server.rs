@@ -4,7 +4,7 @@ use crate::{
     service::{Bundle, ServiceState},
 };
 
-use std::{net::SocketAddr, ops::Deref, rc::Rc, sync::Arc};
+use std::{ops::Deref, sync::Arc};
 use tarpc::context;
 
 // This is the type that implements the generated World trait. It is the business logic

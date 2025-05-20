@@ -1,6 +1,5 @@
 use birdwatcher_rs::{rpc::common::InsightClient, service::Bundle, tui};
 use clap::{command, Parser, Subcommand};
-use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::{net::SocketAddr, str::FromStr, time::Duration};
 use tarpc::tokio_serde::formats::Bincode;
@@ -31,18 +30,8 @@ async fn main() -> color_eyre::Result<()> {
         let codec_builder = tarpc::tokio_util::codec::LengthDelimitedCodec::builder();
         let transport =
             tarpc::serde_transport::new(codec_builder.new_framed(conn), Bincode::default());
-        /* PingServiceClient::new(Default::default(), transport)
-        .spawn()
-        .ping(tarpc::context::current())
-        .await?; */
         let client = InsightClient::new(client::Config::default(), transport).spawn();
 
-        /* let mut transport = tarpc::serde_transport::unix::connect(
-            Path::new("/tmp/birdwatcher.sock"),
-            Json::default,
-        );
-        transport.config_mut().max_frame_length(usize::MAX);
-        let client = InsightClient::new(client::Config::default(), transport.await?).spawn(); */
         let res = client.get_data(context::current()).await?;
 
         dbg!(res);

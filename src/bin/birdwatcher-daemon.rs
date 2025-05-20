@@ -6,6 +6,7 @@ use std::{
     sync::Arc,
 };
 
+use fs_err::PathExt;
 use tokio::{net::UnixListener, process::Command, task::JoinSet, time::timeout};
 
 use birdwatcher_rs::{
@@ -16,14 +17,12 @@ use clap::Parser;
 
 use anyhow::{anyhow, Context, Result};
 
-use futures::{future, prelude::*};
+use futures::prelude::*;
 
-use std::net::{IpAddr, Ipv6Addr};
 use tarpc::{
-    server::{self, incoming::Incoming, BaseChannel, Channel},
-    tokio_serde::formats::{Bincode, Json},
+    server::{BaseChannel, Channel},
+    tokio_serde::formats::Bincode,
     tokio_util::codec::LengthDelimitedCodec,
-    transport,
 };
 
 #[derive(Parser)]
@@ -60,24 +59,39 @@ async fn main() -> Result<()> {
     let service_states = Arc::new(std::sync::Mutex::new(service_states));
     let config = Arc::new(config);
 
-    let server_addr = (IpAddr::V6(Ipv6Addr::LOCALHOST), 50051);
+    let pid_path = "/tmp/birdwatcher.pid";
+    match fs_err::read_to_string(pid_path) {
+        Ok(stored_pid) => {
+            let stored_pid = stored_pid.trim();
+            let another_bw_is_running =
+                std::path::Path::new(&format!("/proc/{stored_pid}")).fs_err_try_exists()?;
+            if another_bw_is_running {
+                eprint!("Another birdwatcher with PID {stored_pid} is already running");
+                std::process::exit(1);
+            } else {
+                fs_err::write(pid_path, format!("{}\n", std::process::id()))?;
+            }
+        }
+        Err(e) => {
+            if let std::io::ErrorKind::NotFound = e.kind() {
+                fs_err::write(pid_path, format!("{}\n", std::process::id()))?;
+            } else {
+                return Err(e).context(format!(
+                    "Trying to know if another birdwatcher is running by looking at PID file `{pid_path}`",
+                ));
+            }
+        }
+    };
 
-    // JSON transport is provided by the json_transport tarpc module. It makes it easy
-    // to start up a serde-powered json serialization strategy over TCP.
-    // let mut listener = tarpc::serde_transport::tcp::listen(&server_addr, Json::default).await?;
+    let socket_path = "/tmp/birdwatcher.sock";
+    match std::fs::remove_file(socket_path) {
+        Ok(_) => {}
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+        Err(e) => return Err(e).context(format!("Cannot remove file {socket_path}")),
+    }
 
-    // tarpc::serde_transport::unix::UnixStream::dsa;
-    // tokio::net::UnixStream;
+    let listener = UnixListener::bind(&Path::new(socket_path)).unwrap();
 
-    let listener = UnixListener::bind(&Path::new("/tmp/birdwatcher.sock")).unwrap();
-
-    /* let mut listener = tarpc::serde_transport::unix::stream::listen(
-        &Path::new("/var/birdwatcher.sock"),
-        Json::default,
-    )
-    .await?; */
-    // tracing::info!("Listening on port {}", listener.local_addr().port());
-    // listener.config_mut().max_frame_length(usize::MAX);
     async fn spawn(fut: impl Future<Output = ()> + Send + 'static) {
         println!("spawning");
         tokio::spawn(fut);
