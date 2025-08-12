@@ -1,5 +1,6 @@
 use birdwatcher_rs::{rpc::common::InsightClient, service::Bundle, tui};
 use clap::{command, Parser, Subcommand};
+use color_eyre::eyre::Context;
 use std::sync::{Arc, Mutex};
 use std::{net::SocketAddr, str::FromStr, time::Duration};
 use tarpc::tokio_serde::formats::Bincode;
@@ -25,7 +26,10 @@ enum Commands {
 async fn main() -> color_eyre::Result<()> {
     let args = CliArg::parse();
     if let Commands::Json {} = args.command {
-        let conn = UnixStream::connect("/tmp/birdwatcher.sock").await?;
+        const SOCKET_PATH: &str = "/tmp/birdwatcher.sock";
+        let conn = UnixStream::connect(SOCKET_PATH)
+            .await
+            .wrap_err(format!("While opening {}", SOCKET_PATH))?;
 
         let codec_builder = tarpc::tokio_util::codec::LengthDelimitedCodec::builder();
         let transport =
@@ -51,19 +55,20 @@ async fn main() -> color_eyre::Result<()> {
         let mut interval = tokio::time::interval(Duration::from_secs(1));
 
         'connection: loop {
-            let mut transport = tarpc::serde_transport::tcp::connect(
-                SocketAddr::from_str("[::1]:50051").unwrap(),
-                Json::default,
-            );
-            transport.config_mut().max_frame_length(usize::MAX);
-            match transport.await {
+            match UnixStream::connect("/tmp/birdwatcher.sock").await {
                 Err(_) => {
                     interval.tick().await;
                     continue 'connection;
                 }
 
-                Ok(t) => {
-                    let client = InsightClient::new(client::Config::default(), t).spawn();
+                Ok(conn) => {
+                    let codec_builder = tarpc::tokio_util::codec::LengthDelimitedCodec::builder();
+                    let transport = tarpc::serde_transport::new(
+                        codec_builder.new_framed(conn),
+                        Bincode::default(),
+                    );
+
+                    let client = InsightClient::new(client::Config::default(), transport).spawn();
 
                     loop {
                         let res = client.get_data(context::current()).await;
