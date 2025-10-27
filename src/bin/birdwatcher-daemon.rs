@@ -27,6 +27,7 @@ use tarpc::{
     tokio_serde::formats::Bincode,
     tokio_util::codec::LengthDelimitedCodec,
 };
+use tracing::{error, info, trace, warn, Level};
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
@@ -42,12 +43,23 @@ struct ServiceCommandResult {
     success: bool,
 }
 
-#[tokio::main(flavor = "current_thread")]
+// opentelemetry metric provider need multi_thread runtime
+#[tokio::main(flavor = "multi_thread")]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     let config: Config = Config::load_from_file(&cli.config)
         .wrap_err(format!("Failed to load config file {:?}", cli.config))?;
+
+    let (meter_provider, logger_provider, tracer_provider) =
+        birdwatcher_rs::telemetry::init_telemetry()?;
+
+    birdwatcher_rs::telemetry::send_dummy_telemetry(
+        &meter_provider,
+        &logger_provider,
+        &tracer_provider,
+    )
+    .unwrap();
 
     // Contains the only mutable state: a counter for each service
     let service_states: Vec<ServiceState> = config
@@ -69,7 +81,7 @@ async fn main() -> Result<()> {
             let another_bw_is_running =
                 std::path::Path::new(&format!("/proc/{stored_pid}")).fs_err_try_exists()?;
             if another_bw_is_running {
-                eprint!("Another birdwatcher with PID {stored_pid} is already running");
+                error!("Another birdwatcher with PID {stored_pid} is already running");
                 std::process::exit(1);
             } else {
                 fs_err::write(pid_path, format!("{}\n", std::process::id()))?;
@@ -96,7 +108,7 @@ async fn main() -> Result<()> {
     let listener = UnixListener::bind(&Path::new(socket_path)).unwrap();
 
     async fn spawn(fut: impl Future<Output = ()> + Send + 'static) {
-        println!("spawning");
+        trace!("spawning");
         tokio::spawn(fut);
     }
     let services_states_for_server = service_states.clone();
@@ -157,16 +169,17 @@ async fn main() -> Result<()> {
         .iter()
         .enumerate()
         .for_each(|(service_nb, service_def)| {
-            println!("Starting {}", service_def.function_name);
+            info!("Starting {}", service_def.function_name);
             let service_def = service_def.clone();
 
             let tx = tx.clone();
 
             join_set.spawn(async move {
                 loop {
-                    println!(
+                    trace!(
                         "Regen function {}, Launching command {}",
-                        service_def.function_name, service_def.command
+                        service_def.function_name,
+                        service_def.command
                     );
                     let command = tokio::process::Command::new(service_def.command.clone())
                         .args(&service_def.args)
@@ -174,19 +187,19 @@ async fn main() -> Result<()> {
                     let result = timeout(service_def.command_timeout, command).await;
                     let return_value = match result {
                         Err(..) => {
-                            println!("Command timed out");
+                            info!("Command timed out");
                             false
                         }
                         Ok(Ok(o)) => o.status.success(),
                         Ok(Err(e)) => {
-                            println!(
+                            warn!(
                                 "Could not launch command \'{}\'. e = {}",
                                 service_def.command, e
                             );
                             false
                         }
                     };
-                    println!(
+                    trace!(
                         "function name {}, return value {return_value}",
                         service_def.function_name
                     );
@@ -203,7 +216,7 @@ async fn main() -> Result<()> {
             });
         });
 
-    println!("All services launched");
+    info!("All services launched");
     // config.service_definitions.
 
     // Main task. Listen for new result from all the tasks spawned above
@@ -280,9 +293,9 @@ async fn launch_reload_function(config: &Config) {
     match reload_return_value {
         Ok(Ok(o)) => {
             if o.status.success() {
-                println!("Reload successful");
+                info!("Reload successful");
             } else {
-                println!(
+                error!(
                     "Reload failure. stdout = {}, stderr = {}",
                     String::from_utf8_lossy(&o.stdout),
                     String::from_utf8_lossy(&o.stderr)
@@ -290,13 +303,13 @@ async fn launch_reload_function(config: &Config) {
             }
         }
         Ok(Err(e)) => {
-            println!(
+            error!(
                 "Could not launch reload command \'{}\'. e = {}",
                 config.reload_command, e
             );
         }
         Err(_) => {
-            println!("Reload command timed out");
+            error!("Reload command timed out");
         }
     };
 }

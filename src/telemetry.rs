@@ -100,7 +100,7 @@ fn build_tracing_subscriber(
     Ok(subscriber)
 }
 
-fn init_telemetry() -> Result<
+pub fn init_telemetry() -> Result<
     (SdkMeterProvider, SdkLoggerProvider, SdkTracerProvider),
     opentelemetry_otlp::ExporterBuildError,
 > {
@@ -112,14 +112,14 @@ fn init_telemetry() -> Result<
     let tracer_provider = build_tracer_provider()?;
 
     let tracing_subscriber =
-        build_tracing_subscriber(&logger_provider, &tracer_provider, Level::WARN)?;
+        build_tracing_subscriber(&logger_provider, &tracer_provider, Level::INFO)?;
 
     tracing::subscriber::set_global_default(tracing_subscriber).unwrap();
 
     Ok((meter_provider, logger_provider, tracer_provider))
 }
 
-fn send_dummy_telemetry(
+pub fn send_dummy_telemetry(
     meter_provider: &SdkMeterProvider,
     logger_provider: &SdkLoggerProvider,
     tracer_provider: &SdkTracerProvider,
@@ -139,5 +139,6 @@ fn send_dummy_telemetry(
     tracer_provider.force_flush().unwrap();
     logger_provider.force_flush().unwrap();
     meter_provider.force_flush().unwrap();
+
     Ok(())
 }
