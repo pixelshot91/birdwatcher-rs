@@ -24,12 +24,23 @@ tokio = { version = "1", features = [
   "rt-multi-thread",
 ] }
 toml = "0.8.20"
-tracing = "0.1.41"
 color-eyre = "0.6.4"
 ratatui = "0.29.0"
 unicode-width = "0.2.0"
 futures-timer = "3.0.3"
 
+opentelemetry-otlp = { version = "0.30.0", default-features = false, features = [
+  "metrics",
+  "logs",
+  "trace",
+  "grpc-tonic",
+] }
+opentelemetry = "0.30.0"
+opentelemetry_sdk = "0.30.0"
+opentelemetry-appender-tracing = "0.30.0"
+tracing = { version = "0.1.41", features = ["log-always"] }
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-opentelemetry = "0.31.0"
 
 [dev-dependencies]
 pretty_assertions = "1.4.1"
