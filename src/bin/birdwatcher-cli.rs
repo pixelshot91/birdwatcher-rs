@@ -2,9 +2,9 @@ use birdwatcher_rs::{rpc::common::InsightClient, service::Bundle, tui};
 use clap::{command, Parser, Subcommand};
 use color_eyre::eyre::Context;
 use std::sync::{Arc, Mutex};
-use std::{net::SocketAddr, str::FromStr, time::Duration};
+use std::time::Duration;
 use tarpc::tokio_serde::formats::Bincode;
-use tarpc::{client, context, tokio_serde::formats::Json};
+use tarpc::{client, context};
 use tokio::net::UnixStream;
 use tokio::task::JoinSet;
 

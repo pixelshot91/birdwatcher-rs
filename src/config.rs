@@ -118,7 +118,7 @@ impl Config {
 
 #[cfg(test)]
 mod test {
-    use std::{fs::FileType, time::Duration};
+    use std::time::Duration;
 
     use crate::{config::GeneratedFile, service::ServiceDefinition};
 
