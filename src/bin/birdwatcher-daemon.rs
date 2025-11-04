@@ -7,6 +7,7 @@ use std::{
 };
 
 use fs_err::PathExt;
+use opentelemetry::KeyValue;
 use tokio::{net::UnixListener, process::Command, task::JoinSet, time::timeout};
 
 use birdwatcher_rs::{
@@ -27,7 +28,7 @@ use tarpc::{
     tokio_serde::formats::Bincode,
     tokio_util::codec::LengthDelimitedCodec,
 };
-use tracing::{error, info, trace, warn, Level};
+use tracing::{error, field, info, trace, warn, Instrument as _};
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
@@ -160,6 +161,9 @@ async fn main() -> Result<()> {
     write_bird_function(&config, &service_states.lock().unwrap());
     launch_reload_function(&config).await;
 
+    let meter = opentelemetry::global::meter("my_test_meter");
+    let counter = meter.u64_gauge("service_up").build();
+
     let (tx, rx) = tokio::sync::mpsc::channel(1);
 
     let mut join_set = JoinSet::new();
@@ -174,6 +178,8 @@ async fn main() -> Result<()> {
 
             let tx = tx.clone();
 
+            let counter = counter.clone();
+
             join_set.spawn(async move {
                 loop {
                     trace!(
@@ -184,21 +190,51 @@ async fn main() -> Result<()> {
                     let command = tokio::process::Command::new(service_def.command.clone())
                         .args(&service_def.args)
                         .output();
-                    let result = timeout(service_def.command_timeout, command).await;
+
+                    let command_execution_span = tracing::info_span!(
+                        "function_execution",
+                        service_def.command,
+                        result = field::Empty
+                    );
+                    let result = timeout(service_def.command_timeout, command)
+                        .instrument(command_execution_span.clone())
+                        .await;
+
                     let return_value = match result {
                         Err(..) => {
-                            info!("Command timed out");
+                            info!(service_def.function_name, "Command timed out");
+                            command_execution_span.record("result", "timeout");
+
                             false
                         }
-                        Ok(Ok(o)) => o.status.success(),
+                        Ok(Ok(o)) => {
+                            let span_result = if o.status.success() {
+                                "success"
+                            } else {
+                                "non-zero status"
+                            };
+                            command_execution_span
+                                .record("result", format!("returned {}", span_result));
+                            o.status.success()
+                        }
                         Ok(Err(e)) => {
                             warn!(
                                 "Could not launch command \'{}\'. e = {}",
                                 service_def.command, e
                             );
+                            command_execution_span.record("result", "error launching command");
+
                             false
                         }
                     };
+                    let return_value_u64 = if return_value { 1 } else { 0 };
+                    counter.record(
+                        return_value_u64,
+                        &[KeyValue::new(
+                            "function_name",
+                            service_def.function_name.clone(),
+                        )],
+                    );
                     trace!(
                         "function name {}, return value {return_value}",
                         service_def.function_name
