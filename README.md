@@ -9,7 +9,7 @@ Inspired by this [birdwatcher](https://github.com/skoef/birdwatcher) by Skoef.
 ### With Nix
 Quick start:
 ```
-nix run github:pixelshot91/outputter -- --help
+nix run github:pixelshot91/birdwatcher-rs -- --help
 ```
 
 To use install it on NixOs, look up `integration_test/single_service.nix`
