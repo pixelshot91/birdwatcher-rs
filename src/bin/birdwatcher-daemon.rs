@@ -162,7 +162,19 @@ async fn main() -> Result<()> {
     launch_reload_function(&config).await;
 
     let meter = opentelemetry::global::meter("my_test_meter");
-    let counter = meter.u64_gauge("service_up").build();
+    let service_up = meter
+        .u64_gauge("birdwatcher_service_up")
+        .with_description("0 = The service is down. 1 = The service is up")
+        .build();
+    let service_hysteresis_state = meter
+        .f64_gauge("birdwatcher_service_hysteresis_state")
+        .with_description("Like service_up, but more detailed. It aggregates the result the last function_return value.
+        It can take intermediate values between 0 and 1 for a failed service raising, or a successful service failing")
+        .build();
+    let function_return_value = meter
+        .u64_gauge("birdwatcher_function_return_value")
+        .with_description("Return value of a function.")
+        .build();
 
     let (tx, rx) = tokio::sync::mpsc::channel(1);
 
@@ -178,7 +190,7 @@ async fn main() -> Result<()> {
 
             let tx = tx.clone();
 
-            let counter = counter.clone();
+            let function_return_value = function_return_value.clone();
 
             join_set.spawn(async move {
                 loop {
@@ -228,12 +240,9 @@ async fn main() -> Result<()> {
                         }
                     };
                     let return_value_u64 = if return_value { 1 } else { 0 };
-                    counter.record(
+                    function_return_value.record(
                         return_value_u64,
-                        &[KeyValue::new(
-                            "function_name",
-                            service_def.function_name.clone(),
-                        )],
+                        &[KeyValue::new("service", service_def.service_name.clone())],
                     );
                     trace!(
                         "function name {}, return value {return_value}",
@@ -270,7 +279,41 @@ async fn main() -> Result<()> {
                         service_command_result.success,
                         &config.service_definitions[service_command_result.service_id],
                     );
+                let (service_up_value, service_hysteresis_state_value) = match &new_state {
+                    ServiceState::Failure { nb_of_success } => (
+                        0,
+                        *nb_of_success as f64
+                            / config.service_definitions[service_command_result.service_id].rise
+                                as f64,
+                    ),
+                    ServiceState::Success { nb_of_failure } => (
+                        1,
+                        1.0 - (*nb_of_failure as f64
+                            / config.service_definitions[service_command_result.service_id].fall
+                                as f64),
+                    ),
+                };
                 service_states[service_command_result.service_id] = new_state;
+
+                service_up.record(
+                    service_up_value,
+                    &[KeyValue::new(
+                        "service",
+                        config.service_definitions[service_command_result.service_id]
+                            .service_name
+                            .clone(),
+                    )],
+                );
+                service_hysteresis_state.record(
+                    service_hysteresis_state_value,
+                    &[KeyValue::new(
+                        "service",
+                        config.service_definitions[service_command_result.service_id]
+                            .service_name
+                            .clone(),
+                    )],
+                );
+
                 (service_states.clone(), should_reload)
             };
 
