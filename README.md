@@ -4,6 +4,40 @@ Run periodic healthcheck on a service to automatically stop or start [BIRD](http
 
 Inspired by this [birdwatcher](https://github.com/skoef/birdwatcher) by Skoef.
 
+## Example
+
+Here is a demo of a Grafana dashboard showing the hysteresis of service.
+The green curve show when the service is considered active.
+The yellow curve show a more detailed view, showing the internal state of birdwatcher-rs
+
+![](./images/demo_hysteresis.png)
+
+```toml
+[generated_file]
+path = "birdwatcher_generated.conf"
+
+[bird_reload]
+command = ["birdc", "configure"]
+timeout_s = 2
+
+[[service_definitions]]
+service_name = "first_service"
+function_name = "my_service_is_ok"
+command = ["my_service_check.sh"]
+command_timeout_s = 1
+interval_s = 5
+fall = 5
+rise = 8
+```
+
+1. At first, the service is down (green curve at zero)
+2. Then, the function return SUCCESS two times in a row, then FAIL, then SUCCESS 3 times in a row. (yellow curve)  
+   This does not affect the service as we need 8 SUCCESS to `rise` the service. (see config above).
+3. The function return SUCCESS more than 8 times in a row (yellow curve going up to 1), so the service becomes up (green curve to 1).
+4. The `generated_file` is regen with `return true` and the `bird reload` command (typically `birdc configure` is called.
+5. After sometimes, the function start failing.  
+   Note that the yellow curve goes down faster than it goes up, because it only needs 5 FAIL to `fall`.
+
 ## Usage
 
 ### With Nix
