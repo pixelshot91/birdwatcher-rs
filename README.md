@@ -38,6 +38,12 @@ rise = 8
 5. After sometimes, the function start failing.  
    Note that the yellow curve goes down faster than it goes up, because it only needs 5 FAIL to `fall`.
 
+To reproduce, use the docker compose in `test_tools` folder:
+```bash
+$ cd test_tools
+$ docker compose up --abort-on-container-exit
+```
+
 ## Usage
 
 ### With Nix

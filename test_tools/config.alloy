@@ -1,0 +1,57 @@
+livedebugging {
+	enabled = true
+}
+
+prometheus.remote_write "local" {
+	endpoint {
+		url = "http://prometheus:9090/api/v1/write"
+	}
+}
+
+otelcol.receiver.otlp "main" {
+	// Receive from gRPC
+	grpc { }
+
+	output {
+		logs    = [otelcol.exporter.loki.default.input]
+		metrics = [otelcol.exporter.prometheus.converter.input]
+		traces  = [otelcol.exporter.otlp.tempo.input]
+	}
+}
+
+// Convert OTLP logs to Loki format and send to Loki
+otelcol.exporter.loki "default" {
+	forward_to = [loki.write.grafana_loki.receiver]
+}
+
+loki.write "grafana_loki" {
+	endpoint {
+		url = "http://loki:3100/loki/api/v1/push"
+	}
+}
+
+// Convert OTLP metrics to Prometheus format and send to Prometheus
+otelcol.exporter.prometheus "converter" {
+	forward_to = [
+		prometheus.remote_write.local.receiver,
+		// Uncomment the line below print the metrics in Prometheus exposition format
+		// prometheus.echo.debug.receiver,
+	]
+}
+
+// print to stdout in Prometheus exposition format
+prometheus.echo "debug" {
+	format = "text"
+}
+
+// Convert OTLP traces to Tempo format and send to Tempo
+otelcol.exporter.otlp "tempo" {
+	client {
+		endpoint = "tempo:4327"
+
+		tls {
+			insecure             = true
+			insecure_skip_verify = true
+		}
+	}
+}
