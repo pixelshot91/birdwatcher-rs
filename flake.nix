@@ -75,14 +75,18 @@
           ];
         };
 
-        birdwatcher-rs = craneLib.buildPackage (
+        birdwatcher-cli = craneLib.buildPackage (
           commonArgs
           // {
+            pname = "birdwatcher-cli";
             cargoArtifacts = craneLib.buildDepsOnly commonArgs;
-
-            # Additional environment variables or build phases/hooks can be set
-            # here *without* rebuilding all dependency crates
-            # MY_CUSTOM_VAR = "some value";
+          }
+        );
+        birdwatcher-daemon = craneLib.buildPackage (
+          commonArgs
+          // {
+            pname = "birdwatcher-daemon";
+            cargoArtifacts = craneLib.buildDepsOnly commonArgs;
           }
         );
       in
@@ -103,7 +107,9 @@
             };
           };
 
-        packages.default = birdwatcher-rs;
+        packages = {
+          inherit birdwatcher-cli birdwatcher-daemon;
+        };
 
         devShells.default = craneLib.devShell {
           # Inherit inputs from checks.
