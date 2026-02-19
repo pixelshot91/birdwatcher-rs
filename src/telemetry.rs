@@ -78,8 +78,8 @@ fn build_tracing_subscriber(
     > = tracing_opentelemetry::layer().with_tracer(tracer);
 
     use tracing_subscriber::EnvFilter;
-    let log_stdout_exporter_layer = tracing_subscriber::fmt::Layer::new()
-        .with_filter(EnvFilter::from_default_env().add_directive(stdout_log_level.into()));
+    let log_stdout_exporter_layer =
+        tracing_subscriber::fmt::Layer::new().with_filter(EnvFilter::from_default_env());
 
     // To prevent a telemetry-induced-telemetry loop
     // See: https://github.com/open-telemetry/opentelemetry-rust/pull/3084/files#diff-b3b130c078a1640592a5defce7c923f8343047e7f18c71e0707bc4a0f094e731L69

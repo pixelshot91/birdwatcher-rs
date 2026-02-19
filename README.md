@@ -46,7 +46,9 @@ $ docker compose up --abort-on-container-exit
 
 ## Usage
 
-### With Nix
+### Building
+
+#### With Nix
 Quick start:
 ```
 nix run github:pixelshot91/birdwatcher-rs -- --help
@@ -54,12 +56,13 @@ nix run github:pixelshot91/birdwatcher-rs -- --help
 
 To use install it on NixOs, look up `integration_test/single_service.nix`
 
-
-### Without Nix
+#### Without Nix
 1. [Install Rust](https://www.rust-lang.org/tools/install)
 2. `cargo run -- --config my_config.toml`
 
-## Configuration
+### Configuration
+
+The configuration file use [TOML](https://toml.io/en/).
 
 ```toml
 [generated_file]
@@ -87,6 +90,22 @@ interval_s = 5
 fall = 1
 rise = 3
 ```
+
+### Telemetry
+
+By default,telemetry is send to endpoint `http://localhost:4317` using the gRPC protocol.
+You can change the endpoint by settings the `OTEL_EXPORTER_OTLP_ENDPOINT` environment variable.  
+
+https://docs.rs/opentelemetry-otlp/0.30.0/opentelemetry_otlp/#constants
+
+### Log level of stdout
+
+You can use the environment variable `RUST_LOG` to controle the level of log written to stdout. It does not affect the logs send by telemetry.  
+Level can be: `error`, `warn`, `info`, `debug`, `trace`  
+Levels are defined here: https://docs.rs/tracing-core/0.1.35/tracing_core/metadata/struct.Level.html#implementations
+
+Example: `RUST_LOG=info`
+By default, only log level `error` are shown.
 
 ## Why fork Skoef's birdwatcher
 
