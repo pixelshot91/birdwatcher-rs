@@ -91,6 +91,15 @@ fall = 1
 rise = 3
 ```
 
+### Log level of stdout
+
+You can use the environment variable `STDOUT_LOG_LEVEL` to controle the level of log written to stdout. It does not affect the logs send by telemetry.  
+Level can be: `error`, `warn`, `info`, `debug`, `trace`  
+Levels are defined here: https://docs.rs/tracing-core/0.1.35/tracing_core/metadata/struct.Level.html#implementations
+
+Example: `STDOUT_LOG_LEVEL=info`
+By default, only log level `error` are shown.
+
 ### Telemetry
 
 By default,telemetry is send to endpoint `http://localhost:4317` using the gRPC protocol.
@@ -98,14 +107,9 @@ You can change the endpoint by settings the `OTEL_EXPORTER_OTLP_ENDPOINT` enviro
 
 https://docs.rs/opentelemetry-otlp/0.30.0/opentelemetry_otlp/#constants
 
-### Log level of stdout
+Both trace and log can be filtered with the following env var: `OTEL_TRACE_LEVEL`, `OTEL_LOG_LEVEL`.
 
-You can use the environment variable `RUST_LOG` to controle the level of log written to stdout. It does not affect the logs send by telemetry.  
-Level can be: `error`, `warn`, `info`, `debug`, `trace`  
-Levels are defined here: https://docs.rs/tracing-core/0.1.35/tracing_core/metadata/struct.Level.html#implementations
-
-Example: `RUST_LOG=info`
-By default, only log level `error` are shown.
+Note: `OTEL_LOG_LEVEL` and `STDOUT_LOG_LEVEL` can be set to different value.
 
 ## Why fork Skoef's birdwatcher
 
