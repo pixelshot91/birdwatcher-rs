@@ -107,6 +107,8 @@ You can change the endpoint by settings the `OTEL_EXPORTER_OTLP_ENDPOINT` enviro
 
 https://docs.rs/opentelemetry-otlp/0.30.0/opentelemetry_otlp/#constants
 
+Metric are exported every 60s by default. This can be modified with `OTEL_METRIC_EXPORT_INTERVAL`.
+
 Both trace and log can be filtered with the following env var: `OTEL_TRACE_LEVEL`, `OTEL_LOG_LEVEL`.
 
 Note: `OTEL_LOG_LEVEL` and `STDOUT_LOG_LEVEL` can be set to different value.

@@ -13,12 +13,9 @@ fn build_meter_provider() -> Result<SdkMeterProvider, opentelemetry_otlp::Export
         .with_tonic()
         .build()?;
 
-    let b = opentelemetry_sdk::metrics::PeriodicReader::builder(exporter)
-        .with_interval(Duration::from_secs(4));
     // Create a meter provider with the OTLP Metric exporter
     let meter_provider = opentelemetry_sdk::metrics::SdkMeterProvider::builder()
-        // .with_periodic_exporter(exporter)
-        .with_reader(b.build())
+        .with_periodic_exporter(exporter)
         .build();
 
     Ok(meter_provider)
