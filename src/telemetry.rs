@@ -74,15 +74,15 @@ fn build_tracing_subscriber(
     > = tracing_opentelemetry::layer().with_tracer(tracer);
 
     let trace_otlp_exporter_layer =
-        trace_otlp_exporter_layer.with_filter(EnvFilter::from_env("OTEL_TRACE_LEVEL"));
+        trace_otlp_exporter_layer.with_filter(EnvFilter::from_env("BIRDWATCHER_TRACE_LEVEL"));
 
     use tracing_subscriber::EnvFilter;
-    let log_stdout_exporter_layer =
-        tracing_subscriber::fmt::Layer::new().with_filter(EnvFilter::from_env("STDOUT_LOG_LEVEL"));
+    let log_stdout_exporter_layer =         tracing_subscriber::fmt::Layer::new()
+.with_filter(EnvFilter::from_env("BIRDWATCHER_LOG_LEVEL"));
 
     // To prevent a telemetry-induced-telemetry loop
     // See: https://github.com/open-telemetry/opentelemetry-rust/pull/3084/files#diff-b3b130c078a1640592a5defce7c923f8343047e7f18c71e0707bc4a0f094e731L69
-    let filter_otel = EnvFilter::from_env("OTEL_LOG_LEVEL")
+    let filter_otel = EnvFilter::from_env("BIRDWATCHER_LOG_LEVEL")
         .add_directive("hyper=off".parse().unwrap())
         .add_directive("tonic=off".parse().unwrap())
         .add_directive("h2=off".parse().unwrap())
