@@ -214,7 +214,7 @@ async fn main() -> Result<()> {
 
                     let return_value = match result {
                         Err(..) => {
-                            info!(service_def.function_name, "Command timed out");
+                            info!(service_name = service_def.service_name, "Command timed out");
                             command_execution_span.record("result", "timeout");
 
                             false
@@ -231,8 +231,8 @@ async fn main() -> Result<()> {
                         }
                         Ok(Err(e)) => {
                             warn!(
-                                "Could not launch command \'{}\'. e = {}",
-                                service_def.command, e
+                                service_name = service_def.service_name,
+                                "Could not launch command \'{}\'. e = {}", service_def.command, e
                             );
                             command_execution_span.record("result", "error launching command");
 
