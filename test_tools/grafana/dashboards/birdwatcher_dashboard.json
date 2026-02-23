@@ -283,8 +283,8 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 8,
-        "w": 12,
+        "h": 12,
+        "w": 16,
         "x": 0,
         "y": 10
       },
@@ -309,12 +309,56 @@
           },
           "direction": "backward",
           "editorMode": "builder",
-          "expr": "{job=\"unknown_service\"} |= ``",
+          "expr": "{service_name=\"unknown_service\"}",
           "queryType": "range",
           "refId": "A"
         }
       ],
-      "title": "Logs",
+      "title": "All logs",
+      "type": "logs"
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "P8E80F9AEF21F6940"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 16,
+        "x": 0,
+        "y": 22
+      },
+      "id": 3,
+      "options": {
+        "dedupStrategy": "none",
+        "enableInfiniteScrolling": false,
+        "enableLogDetails": true,
+        "prettifyLogMessage": false,
+        "showCommonLabels": false,
+        "showLabels": false,
+        "showTime": false,
+        "sortOrder": "Descending",
+        "wrapLogMessage": false
+      },
+      "pluginVersion": "12.1.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "P8E80F9AEF21F6940"
+          },
+          "direction": "backward",
+          "editorMode": "code",
+          "expr": "{service_name=\"unknown_service\"} | json | attributes_service_name = `random2_service`",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ],
+      "title": "Only of my service 'random2_service'",
       "type": "logs"
     }
   ],
@@ -329,9 +373,32 @@
     "from": "now-1m",
     "to": "now"
   },
-  "timepicker": {},
+  "timepicker": {
+    "quick_ranges": [
+      {
+        "display": "30s",
+        "from": "now-30s",
+        "to": "now"
+      },
+      {
+        "display": "1m",
+        "from": "now-1m",
+        "to": "now"
+      },
+      {
+        "display": "5m",
+        "from": "now-5m",
+        "to": "now"
+      },
+      {
+        "display": "15m",
+        "from": "now-15m",
+        "to": "now"
+      }
+    ]
+  },
   "timezone": "browser",
   "title": "birdwatcher",
   "uid": "dbcdc06b-2698-4e3d-84b6-ef4483f5dc24",
-  "version": 3
+  "version": 12
 }
