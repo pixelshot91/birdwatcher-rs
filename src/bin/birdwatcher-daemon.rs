@@ -28,7 +28,7 @@ use tarpc::{
     tokio_serde::formats::Bincode,
     tokio_util::codec::LengthDelimitedCodec,
 };
-use tracing::{error, field, info, trace, warn, Instrument as _};
+use tracing::{debug, error, field, info, warn, Instrument as _};
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
@@ -109,7 +109,7 @@ async fn main() -> Result<()> {
     let listener = UnixListener::bind(&Path::new(socket_path)).unwrap();
 
     async fn spawn(fut: impl Future<Output = ()> + Send + 'static) {
-        trace!("spawning");
+        debug!("spawning");
         tokio::spawn(fut);
     }
     let services_states_for_server = service_states.clone();
@@ -194,10 +194,9 @@ async fn main() -> Result<()> {
 
             join_set.spawn(async move {
                 loop {
-                    trace!(
+                    debug!(
                         "Regen function {}, Launching command {}",
-                        service_def.function_name,
-                        service_def.command
+                        service_def.function_name, service_def.command
                     );
                     let command = tokio::process::Command::new(service_def.command.clone())
                         .args(&service_def.args)
@@ -244,7 +243,7 @@ async fn main() -> Result<()> {
                         return_value_u64,
                         &[KeyValue::new("service", service_def.service_name.clone())],
                     );
-                    trace!(
+                    debug!(
                         "function name {}, return value {return_value}",
                         service_def.function_name
                     );
