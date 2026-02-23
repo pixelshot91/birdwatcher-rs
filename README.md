@@ -96,10 +96,20 @@ rise = 3
 
 ### Telemetry
 
+#### Endpoint
+
 By default,telemetry is send to endpoint `http://localhost:4317` using the gRPC protocol.
 You can change the endpoint by settings the `OTEL_EXPORTER_OTLP_ENDPOINT` environment variable.  
 
 https://docs.rs/opentelemetry-otlp/0.30.0/opentelemetry_otlp/#constants
+
+#### Resource
+
+You can define Resources with this env var `OTEL_RESOURCE_ATTRIBUTES`.
+
+Example: `OTEL_RESOURCE_ATTRIBUTES='service.name=my_service_name'`
+
+Doc: https://opentelemetry.io/docs/specs/otel/configuration/sdk-environment-variables/#general-sdk-configuration
 
 #### Metrics
 

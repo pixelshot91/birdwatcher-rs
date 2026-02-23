@@ -65,7 +65,8 @@ fn build_tracing_subscriber(
         opentelemetry_sdk::logs::SdkLogger,
     > = OpenTelemetryTracingBridge::new(&logger_provider);
 
-    let tracer = tracer_provider.tracer("readme_example");
+    // Note: the tracer name 'birdwatcher_tracer' does not appear to be used
+    let tracer = tracer_provider.tracer("birdwatcher_tracer");
 
     // Create a tracing layer with the configured tracer
     let trace_otlp_exporter_layer: tracing_opentelemetry::OpenTelemetryLayer<
@@ -77,8 +78,8 @@ fn build_tracing_subscriber(
         trace_otlp_exporter_layer.with_filter(EnvFilter::from_env("BIRDWATCHER_TRACE_LEVEL"));
 
     use tracing_subscriber::EnvFilter;
-    let log_stdout_exporter_layer =         tracing_subscriber::fmt::Layer::new()
-.with_filter(EnvFilter::from_env("BIRDWATCHER_LOG_LEVEL"));
+    let log_stdout_exporter_layer = tracing_subscriber::fmt::Layer::new()
+        .with_filter(EnvFilter::from_env("BIRDWATCHER_LOG_LEVEL"));
 
     // To prevent a telemetry-induced-telemetry loop
     // See: https://github.com/open-telemetry/opentelemetry-rust/pull/3084/files#diff-b3b130c078a1640592a5defce7c923f8343047e7f18c71e0707bc4a0f094e731L69
