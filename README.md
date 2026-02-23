@@ -31,10 +31,11 @@ rise = 8
 ```
 
 1. At first, the service is down (green curve at zero)
-2. Then, the function return SUCCESS two times in a row, then FAIL, then SUCCESS 3 times in a row. (yellow curve)  
+2. Then, the function return SUCCESS two times in a rOTEL_METRIC_EXPORT_INTERVAL=1 OTEL_TRACE_LEVEL=warn STDOUT_LOG_LEVEL=info OTEL_LOG_LEVEL=info cargo run --bi
+n birdwatcher-daemon -- --config example/birdwatcher_random.confow, then FAIL, then SUCCESS 3 times in a row. (yellow curve)  
    This does not affect the service as we need 8 SUCCESS to `rise` the service. (see config above).
 3. The function return SUCCESS more than 8 times in a row (yellow curve going up to 1), so the service becomes up (green curve to 1).
-4. The `generated_file` is regen with `return true` and the `bird reload` command (typically `birdc configure` is called.
+4. The `generated_file` is regen with `return true` and the `bird reload` command (typically `birdc configure`) is called.
 5. After sometimes, the function start failing.  
    Note that the yellow curve goes down faster than it goes up, because it only needs 5 FAIL to `fall`.
 
@@ -42,6 +43,7 @@ To reproduce, use the docker compose in `test_tools` folder:
 ```bash
 $ cd test_tools
 $ docker compose up --abort-on-container-exit
+$ OTEL_METRIC_EXPORT_INTERVAL=1 OTEL_TRACE_LEVEL=debug STDOUT_LOG_LEVEL=debug OTEL_LOG_LEVEL=debug nix run .# -- --config example/birdwatcher_random.conf
 ```
 
 ## Usage

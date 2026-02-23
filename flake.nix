@@ -109,6 +109,7 @@
 
         packages = {
           inherit birdwatcher-cli birdwatcher-daemon;
+          default = birdwatcher-daemon;
         };
 
         devShells.default = craneLib.devShell {
