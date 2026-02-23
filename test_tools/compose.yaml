@@ -35,40 +35,8 @@ services:
       - GF_PATHS_PROVISIONING=/etc/grafana/provisioning
       - GF_AUTH_ANONYMOUS_ENABLED=true
       - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
-    entrypoint:
-      - sh
-      - -euc
-      - |
-        mkdir -p /etc/grafana/provisioning/datasources
-        cat <<EOF > /etc/grafana/provisioning/datasources/ds.yaml
-        apiVersion: 1
-        datasources:
-        - name: Loki
-          type: loki
-          access: proxy
-          orgId: 1
-          url: http://loki:3100
-          basicAuth: false
-          isDefault: false
-          version: 1
-          editable: false
-        - name: Prometheus
-          type: prometheus
-          orgId: 1
-          url: http://prometheus:9090
-          basicAuth: false
-          isDefault: true
-          version: 1
-          editable: false
-          jsonData:
-            timeInterval: 1s
-        - name: Tempo
-          type: tempo
-          url: http://tempo:3200
-          access: proxy
-          basicAuth: false
-        EOF
-        /run.sh
+    volumes:
+      - ./provisioning:/etc/grafana/provisioning
 
   alloy:
     image: grafana/alloy:v1.13.0
@@ -83,3 +51,6 @@ services:
       - --stability.level=experimental
     volumes:
       - ./config.alloy:/etc/alloy/config.alloy
+
+volumes:
+  grafana-storage: {}
