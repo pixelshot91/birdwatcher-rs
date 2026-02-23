@@ -60,6 +60,8 @@ services:
           isDefault: true
           version: 1
           editable: false
+          jsonData:
+            timeInterval: 1s
         - name: Tempo
           type: tempo
           url: http://tempo:3200
