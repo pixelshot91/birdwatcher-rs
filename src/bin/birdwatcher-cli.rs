@@ -1,5 +1,5 @@
 use birdwatcher_rs::{rpc::common::InsightClient, service::Bundle, tui};
-use clap::{command, Parser, Subcommand};
+use clap::{Parser, Subcommand};
 use color_eyre::eyre::Context;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
