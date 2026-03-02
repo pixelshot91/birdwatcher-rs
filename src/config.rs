@@ -76,13 +76,16 @@ pub struct Config {
 }
 
 impl Config {
+    /// # Errors
+    ///
+    /// Will return `Err` if `filepath` does not exist or cannot be read
     pub fn load_from_file(filepath: &Path) -> Result<Config> {
         let config_file_content = fs_err::read_to_string(filepath)
-            .wrap_err_with(|| format!("Cannot read file {:?}", filepath))?;
-        Config::from_string(config_file_content)
+            .wrap_err_with(|| format!("Cannot read file {}", filepath.display()))?;
+        Config::from_string(&config_file_content)
     }
 
-    fn from_string(str: String) -> Result<Config> {
+    fn from_string(str: &str) -> Result<Config> {
         let raw_config: raw::Config = toml::from_str(&str)?;
 
         let (bird_reload_cmd, bird_reload_args) =
@@ -128,7 +131,7 @@ mod test {
 
     #[test]
     fn empty_config_should_fail() {
-        assert!(Config::from_string("".into()).is_err())
+        assert!(Config::from_string("".into()).is_err());
     }
     #[test]
     fn one_service() {
@@ -149,8 +152,7 @@ command_timeout_s = 2
 interval_s = 3
 fall = 4
 rise = 5
-"#
-            .to_owned(),
+"#,
         )
         .unwrap();
         assert_eq!(
@@ -218,21 +220,20 @@ interval_s = 1.2
 fall = 1
 rise = 3
 raise = 4
-"#
-            .to_owned(),
+"#,
         );
         assert!(config.is_err());
         let e = config.err().unwrap();
 
         assert_eq!(
             e.to_string(),
-            indoc! { r#"
+            indoc! { r"
             TOML parse error at line 17, column 1
                |
             17 | raise = 4
                | ^^^^^
             unknown field `raise`, expected one of `service_name`, `function_name`, `command`, `interval_s`, `command_timeout_s`, `fall`, `rise`
-            "# }
+            " }
         );
     }
 
@@ -254,8 +255,7 @@ command = ["/bin/ls", "1"]
 command_timeout_s = 1
 interval_s = 1.2
 fall = 1
-"#
-            .to_owned(),
+"#,
         );
         assert!(config.is_err());
         let e = config.err().unwrap();
