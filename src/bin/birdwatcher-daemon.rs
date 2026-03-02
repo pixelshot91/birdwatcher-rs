@@ -102,71 +102,21 @@ async fn main() -> Result<()> {
 
     let mut join_set = JoinSet::new();
 
+    // Start a task for each service. Each Service task will send update to the main task via `ServiceCommandResult` send by `tx`
     start_service_tasks(&mut join_set, &config, &tx.clone(), &function_return_value);
 
     info!("All services launched");
 
-    // Main task. Listen for new result from all the tasks spawned above
-    join_set.spawn(async move {
-        // Move rx inside this task
-        let mut rx = rx;
-
-        loop {
-            let service_command_result = rx.recv().await.unwrap();
-
-            let (service_states_copy, should_reload) = {
-                let mut service_states = service_states.lock().unwrap();
-                let (new_state, should_reload) = service_states[service_command_result.service_id]
-                    .update_with(
-                        service_command_result.success,
-                        &config.service_definitions[service_command_result.service_id],
-                    );
-                let (service_up_value, service_hysteresis_state_value) = match &new_state {
-                    ServiceState::Failure { nb_of_success } => (
-                        0,
-                        f64::from(*nb_of_success)
-                            / f64::from(
-                                config.service_definitions[service_command_result.service_id].rise,
-                            ),
-                    ),
-                    ServiceState::Success { nb_of_failure } => (
-                        1,
-                        1.0 - (f64::from(*nb_of_failure)
-                            / f64::from(
-                                config.service_definitions[service_command_result.service_id].fall,
-                            )),
-                    ),
-                };
-                service_states[service_command_result.service_id] = new_state;
-
-                service_up.record(
-                    service_up_value,
-                    &[KeyValue::new(
-                        "service",
-                        config.service_definitions[service_command_result.service_id]
-                            .service_name
-                            .clone(),
-                    )],
-                );
-                service_hysteresis_state.record(
-                    service_hysteresis_state_value,
-                    &[KeyValue::new(
-                        "service",
-                        config.service_definitions[service_command_result.service_id]
-                            .service_name
-                            .clone(),
-                    )],
-                );
-
-                (service_states.clone(), should_reload)
-            };
-
-            if should_reload {
-                write_bird_function(&config, &service_states_copy);
-                launch_reload_function(&config).await;
-            }
-        }
-    });
+    // Main task. Listen for stream of `ServiceCommandResult` from all the tasks spawned above and update the `service_states` accordingly.
+    // If a service goes up or down, it also updates the generated bird function and launch the reload command.
+    start_main_task(
+        &mut join_set,
+        config.clone(),
+        service_states.clone(),
+        rx,
+        service_up,
+        service_hysteresis_state,
+    );
 
     // No tasks should terminate (neither a service task or the main task).
     // If one does exit, this is an error
@@ -323,6 +273,76 @@ fn start_service_tasks(
                 }
             });
         });
+}
+
+fn start_main_task(
+    join_set: &mut JoinSet<!>,
+    config: Arc<Config>,
+    service_states: Arc<std::sync::Mutex<Vec<ServiceState>>>,
+    rx: tokio::sync::mpsc::Receiver<ServiceCommandResult>,
+    service_up: opentelemetry::metrics::Gauge<u64>,
+    service_hysteresis_state: opentelemetry::metrics::Gauge<f64>,
+) {
+    join_set.spawn(async move {
+        // Move rx inside this task
+        let mut rx = rx;
+
+        loop {
+            let service_command_result = rx.recv().await.unwrap();
+
+            let (service_states_copy, should_reload) = {
+                let mut service_states = service_states.lock().unwrap();
+                let (new_state, should_reload) = service_states[service_command_result.service_id]
+                    .update_with(
+                        service_command_result.success,
+                        &config.service_definitions[service_command_result.service_id],
+                    );
+                let (service_up_value, service_hysteresis_state_value) = match &new_state {
+                    ServiceState::Failure { nb_of_success } => (
+                        0,
+                        f64::from(*nb_of_success)
+                            / f64::from(
+                                config.service_definitions[service_command_result.service_id].rise,
+                            ),
+                    ),
+                    ServiceState::Success { nb_of_failure } => (
+                        1,
+                        1.0 - (f64::from(*nb_of_failure)
+                            / f64::from(
+                                config.service_definitions[service_command_result.service_id].fall,
+                            )),
+                    ),
+                };
+                service_states[service_command_result.service_id] = new_state;
+
+                service_up.record(
+                    service_up_value,
+                    &[KeyValue::new(
+                        "service",
+                        config.service_definitions[service_command_result.service_id]
+                            .service_name
+                            .clone(),
+                    )],
+                );
+                service_hysteresis_state.record(
+                    service_hysteresis_state_value,
+                    &[KeyValue::new(
+                        "service",
+                        config.service_definitions[service_command_result.service_id]
+                            .service_name
+                            .clone(),
+                    )],
+                );
+
+                (service_states.clone(), should_reload)
+            };
+
+            if should_reload {
+                write_bird_function(&config, &service_states_copy);
+                launch_reload_function(&config).await;
+            }
+        }
+    });
 }
 
 fn setup_birdwatcher_cli_server(
