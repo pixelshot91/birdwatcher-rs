@@ -3,7 +3,7 @@
   pkgs,
 }:
 
-pkgs.nixosTest {
+pkgs.testers.nixosTest {
   name = "birdwatcher-rs integration test";
   nodes.machine =
     { config, pkgs, ... }:

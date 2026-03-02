@@ -5,7 +5,7 @@
 let
   conf_out = "/srv/birdwatcher-rs/birdwatcher_generated.conf";
 in
-pkgs.nixosTest {
+pkgs.testers.nixosTest {
   name = "birdwatcher-rs integration test";
   nodes.machine =
     { config, pkgs, ... }:

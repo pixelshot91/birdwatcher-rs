@@ -47,7 +47,7 @@ in
         after = [ "network.target" ];
         wantedBy = [ "multi-user.target" ];
         script = ''
-          exec ${pkgs.birdwatcher-rs}/bin/birdwatcher-rs --config ${birdwatcher-rs-config}\
+          exec ${pkgs.birdwatcher-rs}/bin/birdwatcher-daemon --config ${birdwatcher-rs-config}\
         '';
 
         serviceConfig = {
