@@ -102,85 +102,7 @@ async fn main() -> Result<()> {
 
     let mut join_set = JoinSet::new();
 
-    config
-        .service_definitions
-        .iter()
-        .enumerate()
-        .for_each(|(service_nb, service_def)| {
-            info!("Starting {}", service_def.function_name);
-            let service_def = service_def.clone();
-
-            let tx = tx.clone();
-
-            let function_return_value = function_return_value.clone();
-
-            join_set.spawn(async move {
-                loop {
-                    debug!(
-                        "Regen function {}, Launching command {}",
-                        service_def.function_name, service_def.command
-                    );
-                    let command = tokio::process::Command::new(service_def.command.clone())
-                        .args(&service_def.args)
-                        .output();
-
-                    let command_execution_span = tracing::info_span!(
-                        "function_execution",
-                        service_def.command,
-                        result = field::Empty
-                    );
-                    let result = timeout(service_def.command_timeout, command)
-                        .instrument(command_execution_span.clone())
-                        .await;
-
-                    let return_value = match result {
-                        Err(..) => {
-                            info!(service_name = service_def.service_name, "Command timed out");
-                            command_execution_span.record("result", "timeout");
-
-                            false
-                        }
-                        Ok(Ok(o)) => {
-                            let span_result = if o.status.success() {
-                                "success"
-                            } else {
-                                "non-zero status"
-                            };
-                            command_execution_span
-                                .record("result", format!("returned {span_result}"));
-                            o.status.success()
-                        }
-                        Ok(Err(e)) => {
-                            warn!(
-                                service_name = service_def.service_name,
-                                "Could not launch command \'{}\'. e = {}", service_def.command, e
-                            );
-                            command_execution_span.record("result", "error launching command");
-
-                            false
-                        }
-                    };
-                    let return_value_u64 = u64::from(return_value);
-                    function_return_value.record(
-                        return_value_u64,
-                        &[KeyValue::new("service", service_def.service_name.clone())],
-                    );
-                    debug!(
-                        "function name {}, return value {return_value}",
-                        service_def.function_name
-                    );
-
-                    tx.send(ServiceCommandResult {
-                        service_id: service_nb,
-                        success: return_value,
-                    })
-                    .await
-                    .unwrap();
-
-                    tokio::time::sleep(service_def.interval).await;
-                }
-            });
-        });
+    start_service_tasks(&mut join_set, &config, &tx.clone(), &function_return_value);
 
     info!("All services launched");
 
@@ -314,6 +236,93 @@ async fn launch_reload_function(config: &Config) {
             error!("Reload command timed out");
         }
     }
+}
+
+fn start_service_tasks(
+    join_set: &mut JoinSet<!>,
+    config: &Config,
+    tx: &tokio::sync::mpsc::Sender<ServiceCommandResult>,
+    function_return_value: &opentelemetry::metrics::Gauge<u64>,
+) {
+    config
+        .service_definitions
+        .iter()
+        .enumerate()
+        .for_each(|(service_nb, service_def)| {
+            info!("Starting {}", service_def.function_name);
+            let service_def = service_def.clone();
+
+            let tx = tx.clone();
+
+            let function_return_value = function_return_value.clone();
+
+            join_set.spawn(async move {
+                loop {
+                    debug!(
+                        "Regen function {}, Launching command {}",
+                        service_def.function_name, service_def.command
+                    );
+                    let command = tokio::process::Command::new(service_def.command.clone())
+                        .args(&service_def.args)
+                        .output();
+
+                    let command_execution_span = tracing::info_span!(
+                        "function_execution",
+                        service_def.command,
+                        result = field::Empty
+                    );
+                    let result = timeout(service_def.command_timeout, command)
+                        .instrument(command_execution_span.clone())
+                        .await;
+
+                    let return_value = match result {
+                        Err(..) => {
+                            info!(service_name = service_def.service_name, "Command timed out");
+                            command_execution_span.record("result", "timeout");
+
+                            false
+                        }
+                        Ok(Ok(o)) => {
+                            let span_result = if o.status.success() {
+                                "success"
+                            } else {
+                                "non-zero status"
+                            };
+                            command_execution_span
+                                .record("result", format!("returned {span_result}"));
+                            o.status.success()
+                        }
+                        Ok(Err(e)) => {
+                            warn!(
+                                service_name = service_def.service_name,
+                                "Could not launch command \'{}\'. e = {}", service_def.command, e
+                            );
+                            command_execution_span.record("result", "error launching command");
+
+                            false
+                        }
+                    };
+                    let return_value_u64 = u64::from(return_value);
+                    function_return_value.record(
+                        return_value_u64,
+                        &[KeyValue::new("service", service_def.service_name.clone())],
+                    );
+                    debug!(
+                        "function name {}, return value {return_value}",
+                        service_def.function_name
+                    );
+
+                    tx.send(ServiceCommandResult {
+                        service_id: service_nb,
+                        success: return_value,
+                    })
+                    .await
+                    .unwrap();
+
+                    tokio::time::sleep(service_def.interval).await;
+                }
+            });
+        });
 }
 
 fn setup_birdwatcher_cli_server(
