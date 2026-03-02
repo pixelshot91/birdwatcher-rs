@@ -75,14 +75,7 @@ async fn main() -> color_eyre::Result<()> {
 
                         let received_bundle = res.ok();
                         let should_reset_connection = received_bundle.is_none();
-                        /* let services = zip(
-                            received_bundle.config.service_definitions.iter(),
-                            received_bundle.service_states.iter(),
-                        )
-                        .map(|(def, state)| format!("{}: {:?}", def.service_name, state))
-                        .join("\n"); */
 
-                        // println!("res = {}", services);
                         {
                             let mut bundle = bundle.lock().unwrap();
                             *bundle = received_bundle;

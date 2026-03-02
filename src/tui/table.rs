@@ -1,17 +1,5 @@
-//! # [Ratatui] Table example
-//!
-//! The latest version of this example is available in the [examples] folder in the repository.
-//!
-//! Please note that the examples are designed to be run against the `main` branch of the Github
-//! repository. This means that you may not be able to compile with the latest release version on
-//! crates.io, or the one that you have installed locally.
-//!
-//! See the [examples readme] for more information on finding examples that match the version of the
-//! library you are using.
-//!
-//! [Ratatui]: https://github.com/ratatui/ratatui
-//! [examples]: https://github.com/ratatui/ratatui/blob/main/examples
-//! [examples readme]: https://github.com/ratatui/ratatui/blob/main/examples/README.md
+//! Define a TUI app that display the state of the services in a table.
+//! It is used by `birdwatcher-cli` to display the state of the services.
 
 use std::{
     iter::zip,
@@ -35,8 +23,6 @@ use tokio::select;
 use futures_timer::Delay;
 
 use crate::service::Bundle;
-
-// const ITEM_HEIGHT: usize = 4;
 
 struct TableColors {
     buffer_bg: Color,
@@ -70,11 +56,7 @@ impl TableColors {
 
 pub struct App {
     state: TableState,
-    // items: Vec<Data>,
     bundle: Arc<Mutex<Option<Bundle>>>,
-    // bundle: Arc<Mutex<String>>,
-    // longest_item_lens: (u16, u16, u16), // order is (name, address, email)
-    // scroll_state: ScrollbarState,
     colors: TableColors,
 }
 
@@ -82,9 +64,6 @@ impl App {
     pub fn new(bundle: Arc<Mutex<Option<Bundle>>>) -> Self {
         Self {
             state: TableState::default().with_selected(0),
-            // longest_item_lens: constraint_len_calculator(&data_vec),
-            // scroll_state: ScrollbarState::new((data_vec.len() - 1) * ITEM_HEIGHT),
-            // items: data_vec,
             colors: TableColors::new(&tailwind::GRAY),
             bundle,
         }
@@ -101,7 +80,6 @@ impl App {
             None => 0,
         };
         self.state.select(Some(i));
-        // self.scroll_state = self.scroll_state.position(i * ITEM_HEIGHT);
     }
 
     pub fn previous_row(&mut self, bundle: &Bundle) {
@@ -116,7 +94,6 @@ impl App {
             None => 0,
         };
         self.state.select(Some(i));
-        // self.scroll_state = self.scroll_state.position(i * ITEM_HEIGHT);
     }
 
     pub async fn run(mut self, mut terminal: DefaultTerminal) -> Result<()> {
@@ -168,13 +145,10 @@ impl App {
                 frame.render_widget(p, frame.area());
             }
             Some(bundle) => {
-                // self.reset_scrollbar(bundle.service_states.len());
-                // if bundle.service_states.len() != self.scroll_state.content_length(content_length)
                 let vertical = &Layout::vertical([Constraint::Min(5), Constraint::Length(4)]);
                 let rects = vertical.split(frame.area());
 
                 self.render_table(frame, rects[0], bundle);
-                // self.render_scrollbar(frame, rects[0]);
                 self.render_footer(frame, rects[1]);
             }
         }
@@ -204,60 +178,40 @@ impl App {
             bundle.service_states.iter(),
         );
 
-        let rows = services.enumerate().map(|(i, data)| {
-            let color = match i % 2 {
-                0 => self.colors.normal_row_color,
-                _ => self.colors.alt_row_color,
-            };
-            let item = [
-                &format!("{}", data.0.function_name),
-                &format!("{}s", data.0.interval.as_secs()),
-                &format!("{:?}", data.1),
-            ];
-            item.into_iter()
-                .map(|content| Cell::from(Text::from(format!("\n{content}\n"))))
-                .collect::<Row>()
-                .style(Style::new().fg(self.colors.row_fg).bg(color))
-                .height(4)
-        });
+        let rows = services
+            .enumerate()
+            .map(|(i, (service_definition, service_state))| {
+                let color = match i % 2 {
+                    0 => self.colors.normal_row_color,
+                    _ => self.colors.alt_row_color,
+                };
+                let item = [
+                    &format!("{}", service_definition.function_name),
+                    &format!("{}s", service_definition.interval.as_secs()),
+                    &format!("{:?}", service_state),
+                ];
+                item.into_iter()
+                    .map(|content| Cell::from(Text::from(format!("\n{content}\n"))))
+                    .collect::<Row>()
+                    .style(Style::new().fg(self.colors.row_fg).bg(color))
+                    .height(4)
+            });
         let bar = " █ ";
-        let t = Table::new(
-            rows,
-            Constraint::from_fills([1, 1, 3]), /*  [
-                                                   // + 1 is for padding.
-                                                   Constraint::Length(self.longest_item_lens.0 + 1),
-                                                   Constraint::Min(self.longest_item_lens.1 + 1),
-                                                   Constraint::Min(self.longest_item_lens.2),
-                                               ] */
-        )
-        .header(header)
-        .row_highlight_style(selected_row_style)
-        .column_highlight_style(selected_col_style)
-        .cell_highlight_style(selected_cell_style)
-        .highlight_symbol(Text::from(vec![
-            "".into(),
-            bar.into(),
-            bar.into(),
-            "".into(),
-        ]))
-        .bg(self.colors.buffer_bg)
-        .highlight_spacing(HighlightSpacing::Always);
-        frame.render_stateful_widget(t, area, &mut self.state);
+        let table = Table::new(rows, Constraint::from_fills([1, 1, 3]))
+            .header(header)
+            .row_highlight_style(selected_row_style)
+            .column_highlight_style(selected_col_style)
+            .cell_highlight_style(selected_cell_style)
+            .highlight_symbol(Text::from(vec![
+                "".into(),
+                bar.into(),
+                bar.into(),
+                "".into(),
+            ]))
+            .bg(self.colors.buffer_bg)
+            .highlight_spacing(HighlightSpacing::Always);
+        frame.render_stateful_widget(table, area, &mut self.state);
     }
-
-    /* fn render_scrollbar(&mut self, frame: &mut Frame, area: Rect) {
-        frame.render_stateful_widget(
-            Scrollbar::default()
-                .orientation(ScrollbarOrientation::VerticalRight)
-                .begin_symbol(None)
-                .end_symbol(None),
-            area.inner(Margin {
-                vertical: 1,
-                horizontal: 1,
-            }),
-            &mut self.scroll_state,
-        );
-    } */
 
     fn render_footer(&self, frame: &mut Frame, area: Rect) {
         const INFO_TEXT: [&str; 1] = ["(Esc) quit | (↑) move up | (↓) move down"];
@@ -276,35 +230,4 @@ impl App {
             );
         frame.render_widget(info_footer, area);
     }
-
-    /* fn reset_scrollbar(&self, nb_services: usize) {
-        if nb_services != self.scroll_state.content_length() {
-            self.scroll_state = ScrollbarState::new(nb_services * ITEM_HEIGHT)
-        }
-    } */
 }
-
-/* fn constraint_len_calculator(items: &[Data]) -> (u16, u16, u16) {
-    let name_len = items
-        .iter()
-        .map(Data::name)
-        .map(UnicodeWidthStr::width)
-        .max()
-        .unwrap_or(0);
-    let address_len = items
-        .iter()
-        .map(Data::address)
-        .flat_map(str::lines)
-        .map(UnicodeWidthStr::width)
-        .max()
-        .unwrap_or(0);
-    let email_len = items
-        .iter()
-        .map(Data::email)
-        .map(UnicodeWidthStr::width)
-        .max()
-        .unwrap_or(0);
-
-    #[allow(clippy::cast_possible_truncation)]
-    (name_len as u16, address_len as u16, email_len as u16)
-} */

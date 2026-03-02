@@ -116,6 +116,8 @@ pub fn init_telemetry() -> Result<
     Ok((meter_provider, logger_provider, tracer_provider))
 }
 
+/// Used to test the telemetry setup by sending some dummy telemetry data.
+/// It is called in `main` when the `--test-telemetry` flag is set.
 pub fn send_dummy_telemetry(
     meter_provider: &SdkMeterProvider,
     logger_provider: &SdkLoggerProvider,
