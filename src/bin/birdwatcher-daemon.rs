@@ -83,17 +83,17 @@ async fn main() -> Result<()> {
     write_bird_function(&config, &service_states.lock().unwrap());
     launch_reload_function(&config).await;
 
-    let meter = opentelemetry::global::meter("my_test_meter");
-    let service_up = meter
+    let meter = opentelemetry::global::meter("birdwatcher");
+    let service_up_instrument = meter
         .u64_gauge("birdwatcher_service_up")
         .with_description("0 = The service is down. 1 = The service is up")
         .build();
-    let service_hysteresis_state = meter
+    let service_hysteresis_state_instrument = meter
         .f64_gauge("birdwatcher_service_hysteresis_state")
         .with_description("Like service_up, but more detailed. It aggregates the result the last function_return value.
         It can take intermediate values between 0 and 1 for a failed service raising, or a successful service failing")
         .build();
-    let function_return_value = meter
+    let function_return_value_instrument = meter
         .u64_gauge("birdwatcher_function_return_value")
         .with_description("Return value of a function.")
         .build();
@@ -103,7 +103,7 @@ async fn main() -> Result<()> {
     let mut join_set = JoinSet::new();
 
     // Start a task for each service. Each Service task will send update to the main task via `ServiceCommandResult` send by `tx`
-    start_service_tasks(&mut join_set, &config, &tx.clone(), &function_return_value);
+    start_service_tasks(&mut join_set, &config, &tx.clone(), &function_return_value_instrument);
 
     info!("All services launched");
 
@@ -114,8 +114,8 @@ async fn main() -> Result<()> {
         config.clone(),
         service_states.clone(),
         rx,
-        service_up,
-        service_hysteresis_state,
+        service_up_instrument,
+        service_hysteresis_state_instrument,
     );
 
     // No tasks should terminate (neither a service task or the main task).
