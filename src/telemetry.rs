@@ -1,11 +1,9 @@
-use std::time::Duration;
-
 use opentelemetry::global;
 use opentelemetry_sdk::error::OTelSdkResult;
 use opentelemetry_sdk::logs::SdkLoggerProvider;
 use opentelemetry_sdk::metrics::SdkMeterProvider;
 use opentelemetry_sdk::trace::SdkTracerProvider;
-use tracing::{info, info_span, trace, warn, Level};
+use tracing::{info, info_span, trace, warn};
 
 fn build_meter_provider() -> Result<SdkMeterProvider, opentelemetry_otlp::ExporterBuildError> {
     // Initialize OTLP exporter using gRPC
