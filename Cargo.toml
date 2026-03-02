@@ -47,4 +47,6 @@ pretty_assertions = "1.4.1"
 indoc = "2"
 
 [lints.clippy]
-pedantic = "forbid"
+pedantic = { level = "deny", priority = -1 }
+missing_panics_doc = "allow"
+missing_errors_doc = "allow"

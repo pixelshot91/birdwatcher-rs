@@ -50,11 +50,11 @@ fn build_tracer_provider(
 fn build_tracing_subscriber(
     logger_provider: &SdkLoggerProvider,
     tracer_provider: &SdkTracerProvider,
-) -> Result<impl tracing::Subscriber + Send + Sync + 'static, opentelemetry_otlp::ExporterBuildError>
-{
+) -> impl tracing::Subscriber + std::marker::Send + std::marker::Sync + 'static {
     use opentelemetry::trace::TracerProvider as _;
     use opentelemetry_appender_tracing::layer::OpenTelemetryTracingBridge;
     use tracing_subscriber::layer::SubscriberExt as _;
+    use tracing_subscriber::EnvFilter;
     use tracing_subscriber::Layer;
     use tracing_subscriber::Registry;
 
@@ -75,7 +75,6 @@ fn build_tracing_subscriber(
     let trace_otlp_exporter_layer =
         trace_otlp_exporter_layer.with_filter(EnvFilter::from_env("BIRDWATCHER_TRACE_LEVEL"));
 
-    use tracing_subscriber::EnvFilter;
     let log_stdout_exporter_layer = tracing_subscriber::fmt::Layer::new()
         .with_filter(EnvFilter::from_env("BIRDWATCHER_LOG_LEVEL"));
 
@@ -88,14 +87,10 @@ fn build_tracing_subscriber(
         .add_directive("reqwest=off".parse().unwrap());
     let log_otlp_exporter_layer = otel_layer.with_filter(filter_otel);
 
-    // Use the tracing subscriber `Registry`, or any other subscriber
-    // that impls `LookupSpan`
-    let subscriber = Registry::default()
+    Registry::default()
         .with(trace_otlp_exporter_layer)
         .with(log_otlp_exporter_layer)
-        .with(log_stdout_exporter_layer);
-
-    Ok(subscriber)
+        .with(log_stdout_exporter_layer)
 }
 
 pub fn init_telemetry() -> Result<
@@ -109,7 +104,7 @@ pub fn init_telemetry() -> Result<
 
     let tracer_provider = build_tracer_provider()?;
 
-    let tracing_subscriber = build_tracing_subscriber(&logger_provider, &tracer_provider)?;
+    let tracing_subscriber = build_tracing_subscriber(&logger_provider, &tracer_provider);
 
     tracing::subscriber::set_global_default(tracing_subscriber).unwrap();
 

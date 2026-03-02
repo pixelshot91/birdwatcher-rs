@@ -49,8 +49,10 @@ struct ServiceCommandResult {
 async fn main() -> Result<()> {
     let cli = Cli::parse();
 
-    let config: Config = Config::load_from_file(&cli.config)
-        .wrap_err(format!("Failed to load config file {:?}", cli.config))?;
+    let config: Config = Config::load_from_file(&cli.config).wrap_err(format!(
+        "Failed to load config file {}",
+        cli.config.display()
+    ))?;
 
     let (meter_provider, logger_provider, tracer_provider) =
         birdwatcher_rs::telemetry::init_telemetry()?;
@@ -97,11 +99,11 @@ async fn main() -> Result<()> {
                 ));
             }
         }
-    };
+    }
 
     let socket_path = "/tmp/birdwatcher.sock";
     match std::fs::remove_file(socket_path) {
-        Ok(_) => {}
+        Ok(()) => {}
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
         Err(e) => return Err(e).context(format!("Cannot remove file {socket_path}")),
     }
@@ -201,7 +203,7 @@ async fn main() -> Result<()> {
                                 "non-zero status"
                             };
                             command_execution_span
-                                .record("result", format!("returned {}", span_result));
+                                .record("result", format!("returned {span_result}"));
                             o.status.success()
                         }
                         Ok(Err(e)) => {
@@ -214,7 +216,7 @@ async fn main() -> Result<()> {
                             false
                         }
                     };
-                    let return_value_u64 = if return_value { 1 } else { 0 };
+                    let return_value_u64 = u64::from(return_value);
                     function_return_value.record(
                         return_value_u64,
                         &[KeyValue::new("service", service_def.service_name.clone())],
@@ -256,15 +258,17 @@ async fn main() -> Result<()> {
                 let (service_up_value, service_hysteresis_state_value) = match &new_state {
                     ServiceState::Failure { nb_of_success } => (
                         0,
-                        *nb_of_success as f64
-                            / config.service_definitions[service_command_result.service_id].rise
-                                as f64,
+                        f64::from(*nb_of_success)
+                            / f64::from(
+                                config.service_definitions[service_command_result.service_id].rise,
+                            ),
                     ),
                     ServiceState::Success { nb_of_failure } => (
                         1,
-                        1.0 - (*nb_of_failure as f64
-                            / config.service_definitions[service_command_result.service_id].fall
-                                as f64),
+                        1.0 - (f64::from(*nb_of_failure)
+                            / f64::from(
+                                config.service_definitions[service_command_result.service_id].fall,
+                            )),
                     ),
                 };
                 service_states[service_command_result.service_id] = new_state;
@@ -319,9 +323,10 @@ fn write_bird_function(config: &Config, services_states: &[ServiceState]) {
                 ServiceState::Failure { .. } => "false",
                 ServiceState::Success { .. } => "true",
             };
-            let return_type = match config.generated_file.function_return_type {
-                true => "-> bool",
-                false => "",
+            let return_type = if config.generated_file.function_return_type {
+                "-> bool"
+            } else {
+                ""
             };
             format!(
                 "
@@ -364,5 +369,5 @@ async fn launch_reload_function(config: &Config) {
         Err(_) => {
             error!("Reload command timed out");
         }
-    };
+    }
 }

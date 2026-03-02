@@ -86,7 +86,7 @@ impl Config {
     }
 
     fn from_string(str: &str) -> Result<Config> {
-        let raw_config: raw::Config = toml::from_str(&str)?;
+        let raw_config: raw::Config = toml::from_str(str)?;
 
         let (bird_reload_cmd, bird_reload_args) =
             raw_config.bird_reload.command.split_first().wrap_err("'bird_reload.command' should contain at least one element: the path to the executable to run")?;
@@ -131,7 +131,7 @@ mod test {
 
     #[test]
     fn empty_config_should_fail() {
-        assert!(Config::from_string("".into()).is_err());
+        assert!(Config::from_string("").is_err());
     }
     #[test]
     fn one_service() {
@@ -191,13 +191,13 @@ rise = 5
 
     #[test]
     fn all_example_config_works() {
-        std::fs::read_dir("example/").unwrap().for_each(|c| {
+        for c in std::fs::read_dir("example/").unwrap() {
             let f = c.unwrap();
             if f.file_type().unwrap().is_file() {
                 println!("checking {}", &f.path().display());
                 Config::load_from_file(&f.path()).unwrap();
             }
-        });
+        }
     }
 
     #[test]
@@ -262,13 +262,13 @@ fall = 1
 
         assert_eq!(
             e.to_string(),
-            indoc! { r#"
+            indoc! { r"
                 TOML parse error at line 9, column 1
                   |
                 9 | [[service_definitions]]
                   | ^^^^^^^^^^^^^^^^^^^^^^^
                 missing field `rise`
-             "# }
+             " }
         );
     }
 }

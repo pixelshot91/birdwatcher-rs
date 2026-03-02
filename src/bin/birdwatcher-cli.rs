@@ -29,7 +29,7 @@ async fn main() -> color_eyre::Result<()> {
         const SOCKET_PATH: &str = "/tmp/birdwatcher.sock";
         let conn = UnixStream::connect(SOCKET_PATH)
             .await
-            .wrap_err(format!("While opening {}", SOCKET_PATH))?;
+            .wrap_err(format!("While opening {SOCKET_PATH}"))?;
 
         let codec_builder = tarpc::tokio_util::codec::LengthDelimitedCodec::builder();
         let transport =
@@ -58,7 +58,6 @@ async fn main() -> color_eyre::Result<()> {
             match UnixStream::connect("/tmp/birdwatcher.sock").await {
                 Err(_) => {
                     interval.tick().await;
-                    continue 'connection;
                 }
 
                 Ok(conn) => {

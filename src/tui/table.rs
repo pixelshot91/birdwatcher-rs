@@ -104,13 +104,13 @@ impl App {
                 let b = self.bundle.lock().unwrap();
                 b.clone()
             };
-            terminal.draw(|frame| self.draw(frame, &bundle))?;
+            terminal.draw(|frame| self.draw(frame, bundle.as_ref()))?;
 
-            let delay = Delay::new(Duration::from_millis(1_000)).fuse();
+            let delay = Delay::new(Duration::from_secs(1)).fuse();
             let event = reader.next().fuse();
 
             select! {
-                _ = delay => {  },
+                () = delay => {  },
                 maybe_event = event => {
                     match maybe_event {
                         Some(Ok(event)) => {
@@ -126,7 +126,7 @@ impl App {
                                 }
                             }
                         }
-                        Some(Err(e)) => println!("Error: {:?}\r", e),
+                        Some(Err(e)) => println!("Error: {e:?}\r"),
                         None => break,
                     }
                 }
@@ -135,7 +135,7 @@ impl App {
         Ok(())
     }
 
-    fn draw(&mut self, frame: &mut Frame, bundle: &Option<Bundle>) {
+    fn draw(&mut self, frame: &mut Frame, bundle: Option<&Bundle>) {
         match bundle {
             None => {
                 let p = Paragraph::new(format!(
@@ -186,9 +186,9 @@ impl App {
                     _ => self.colors.alt_row_color,
                 };
                 let item = [
-                    &service_definition.function_name.to_string(),
+                    &service_definition.function_name.clone(),
                     &format!("{}s", service_definition.interval.as_secs()),
-                    &format!("{:?}", service_state),
+                    &format!("{service_state:?}"),
                 ];
                 item.into_iter()
                     .map(|content| Cell::from(Text::from(format!("\n{content}\n"))))
