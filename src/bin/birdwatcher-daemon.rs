@@ -74,67 +74,11 @@ async fn main() -> Result<()> {
                 nb_of_success: def.rise - 1,
         })
         .collect();
-    let service_states = Arc::new(std::sync::Mutex::new(service_states));
+    let service_states: Arc<std::sync::Mutex<Vec<ServiceState>>> =
+        Arc::new(std::sync::Mutex::new(service_states));
     let config = Arc::new(config);
 
-    let pid_path = "/tmp/birdwatcher.pid";
-    match fs_err::read_to_string(pid_path) {
-        Ok(stored_pid) => {
-            let stored_pid = stored_pid.trim();
-            let another_bw_is_running =
-                std::path::Path::new(&format!("/proc/{stored_pid}")).fs_err_try_exists()?;
-            if another_bw_is_running {
-                error!("Another birdwatcher with PID {stored_pid} is already running");
-                std::process::exit(1);
-            } else {
-                fs_err::write(pid_path, format!("{}\n", std::process::id()))?;
-            }
-        }
-        Err(e) => {
-            if let std::io::ErrorKind::NotFound = e.kind() {
-                fs_err::write(pid_path, format!("{}\n", std::process::id()))?;
-            } else {
-                return Err(e).context(format!(
-                    "Trying to know if another birdwatcher is running by looking at PID file `{pid_path}`",
-                ));
-            }
-        }
-    }
-
-    let socket_path = "/tmp/birdwatcher.sock";
-    match std::fs::remove_file(socket_path) {
-        Ok(()) => {}
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
-        Err(e) => return Err(e).context(format!("Cannot remove file {socket_path}")),
-    }
-
-    let listener = UnixListener::bind(Path::new(socket_path)).unwrap();
-
-    async fn spawn(fut: impl Future<Output = ()> + Send + 'static) {
-        debug!("spawning");
-        tokio::spawn(fut);
-    }
-    let services_states_for_server = service_states.clone();
-    let config_for_server = config.clone();
-
-    let codec_builder = LengthDelimitedCodec::builder();
-
-    tokio::spawn(async move {
-        loop {
-            let (conn, _addr) = listener.accept().await.unwrap();
-            let framed = codec_builder.new_framed(conn);
-            let transport = tarpc::serde_transport::new(framed, Bincode::default());
-
-            let server = InsightServer {
-                service_states: services_states_for_server.clone(),
-                config: config_for_server.clone(),
-            };
-            let fut = BaseChannel::with_defaults(transport)
-                .execute(server.serve())
-                .for_each(spawn);
-            tokio::spawn(fut);
-        }
-    });
+    setup_birdwatcher_cli_server(service_states.clone(), config.clone()).unwrap();
 
     write_bird_function(&config, &service_states.lock().unwrap());
     launch_reload_function(&config).await;
@@ -370,4 +314,70 @@ async fn launch_reload_function(config: &Config) {
             error!("Reload command timed out");
         }
     }
+}
+
+fn setup_birdwatcher_cli_server(
+    service_states: Arc<std::sync::Mutex<Vec<ServiceState>>>,
+    config: Arc<Config>,
+) -> Result<()> {
+    async fn spawn(fut: impl Future<Output = ()> + Send + 'static) {
+        debug!("spawning");
+        tokio::spawn(fut);
+    }
+
+    let pid_path = "/tmp/birdwatcher.pid";
+    match fs_err::read_to_string(pid_path) {
+        Ok(stored_pid) => {
+            let stored_pid = stored_pid.trim();
+            let another_bw_is_running =
+                std::path::Path::new(&format!("/proc/{stored_pid}")).fs_err_try_exists()?;
+            if another_bw_is_running {
+                error!("Another birdwatcher with PID {stored_pid} is already running");
+                std::process::exit(1);
+            } else {
+                fs_err::write(pid_path, format!("{}\n", std::process::id()))?;
+            }
+        }
+        Err(e) => {
+            if let std::io::ErrorKind::NotFound = e.kind() {
+                fs_err::write(pid_path, format!("{}\n", std::process::id()))?;
+            } else {
+                return Err(e).context(format!(
+                    "Trying to know if another birdwatcher is running by looking at PID file `{pid_path}`",
+                ));
+            }
+        }
+    }
+
+    let socket_path = "/tmp/birdwatcher.sock";
+    match std::fs::remove_file(socket_path) {
+        Ok(()) => {}
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+        Err(e) => return Err(e).context(format!("Cannot remove file {socket_path}")),
+    }
+
+    let listener = UnixListener::bind(Path::new(socket_path)).unwrap();
+
+    let services_states_for_server = service_states;
+    let config_for_server = config;
+
+    let codec_builder = LengthDelimitedCodec::builder();
+
+    tokio::spawn(async move {
+        loop {
+            let (conn, _addr) = listener.accept().await.unwrap();
+            let framed = codec_builder.new_framed(conn);
+            let transport = tarpc::serde_transport::new(framed, Bincode::default());
+
+            let server = InsightServer {
+                service_states: services_states_for_server.clone(),
+                config: config_for_server.clone(),
+            };
+            let fut = BaseChannel::with_defaults(transport)
+                .execute(server.serve())
+                .for_each(spawn);
+            tokio::spawn(fut);
+        }
+    });
+    Ok(())
 }
