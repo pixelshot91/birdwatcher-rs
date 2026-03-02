@@ -186,7 +186,7 @@ impl App {
                     _ => self.colors.alt_row_color,
                 };
                 let item = [
-                    &format!("{}", service_definition.function_name),
+                    &service_definition.function_name.to_string(),
                     &format!("{}s", service_definition.interval.as_secs()),
                     &format!("{:?}", service_state),
                 ];

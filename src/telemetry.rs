@@ -61,7 +61,7 @@ fn build_tracing_subscriber(
     let otel_layer: OpenTelemetryTracingBridge<
         opentelemetry_sdk::logs::SdkLoggerProvider,
         opentelemetry_sdk::logs::SdkLogger,
-    > = OpenTelemetryTracingBridge::new(&logger_provider);
+    > = OpenTelemetryTracingBridge::new(logger_provider);
 
     // Note: the tracer name 'birdwatcher_tracer' does not appear to be used
     let tracer = tracer_provider.tracer("birdwatcher_tracer");

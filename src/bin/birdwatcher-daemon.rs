@@ -106,7 +106,7 @@ async fn main() -> Result<()> {
         Err(e) => return Err(e).context(format!("Cannot remove file {socket_path}")),
     }
 
-    let listener = UnixListener::bind(&Path::new(socket_path)).unwrap();
+    let listener = UnixListener::bind(Path::new(socket_path)).unwrap();
 
     async fn spawn(fut: impl Future<Output = ()> + Send + 'static) {
         debug!("spawning");
