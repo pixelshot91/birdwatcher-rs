@@ -96,6 +96,10 @@ impl App {
         self.state.select(Some(i));
     }
 
+    /// Runs the TUI application.
+    ///
+    /// # Panics
+    /// This function will panic if the mutex guarding the `bundle` is poisoned.
     pub async fn run(mut self, mut terminal: DefaultTerminal) -> Result<()> {
         let mut reader = event::EventStream::new();
 

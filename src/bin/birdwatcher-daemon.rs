@@ -54,15 +54,7 @@ async fn main() -> Result<()> {
         cli.config.display()
     ))?;
 
-    let (meter_provider, logger_provider, tracer_provider) =
-        birdwatcher_rs::telemetry::init_telemetry()?;
-
-    birdwatcher_rs::telemetry::send_dummy_telemetry(
-        &meter_provider,
-        &logger_provider,
-        &tracer_provider,
-    )
-    .unwrap();
+    birdwatcher_rs::telemetry::init_telemetry()?;
 
     // Contains the only mutable state: a counter for each service
     let service_states: Vec<ServiceState> = config
@@ -103,7 +95,12 @@ async fn main() -> Result<()> {
     let mut join_set = JoinSet::new();
 
     // Start a task for each service. Each Service task will send update to the main task via `ServiceCommandResult` send by `tx`
-    start_service_tasks(&mut join_set, &config, &tx.clone(), &function_return_value_instrument);
+    start_service_tasks(
+        &mut join_set,
+        &config,
+        &tx.clone(),
+        &function_return_value_instrument,
+    );
 
     info!("All services launched");
 

@@ -48,5 +48,4 @@ indoc = "2"
 
 [lints.clippy]
 pedantic = { level = "deny", priority = -1 }
-missing_panics_doc = "allow"
 missing_errors_doc = "allow"

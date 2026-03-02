@@ -1,9 +1,8 @@
+use color_eyre::eyre::{Context, Result};
 use opentelemetry::global;
-use opentelemetry_sdk::error::OTelSdkResult;
 use opentelemetry_sdk::logs::SdkLoggerProvider;
 use opentelemetry_sdk::metrics::SdkMeterProvider;
 use opentelemetry_sdk::trace::SdkTracerProvider;
-use tracing::{info, info_span, trace, warn};
 
 fn build_meter_provider() -> Result<SdkMeterProvider, opentelemetry_otlp::ExporterBuildError> {
     // Initialize OTLP exporter using gRPC
@@ -93,10 +92,7 @@ fn build_tracing_subscriber(
         .with(log_stdout_exporter_layer)
 }
 
-pub fn init_telemetry() -> Result<
-    (SdkMeterProvider, SdkLoggerProvider, SdkTracerProvider),
-    opentelemetry_otlp::ExporterBuildError,
-> {
+pub fn init_telemetry() -> Result<(SdkMeterProvider, SdkLoggerProvider, SdkTracerProvider)> {
     let meter_provider = build_meter_provider()?;
     global::set_meter_provider(meter_provider.clone());
 
@@ -106,33 +102,8 @@ pub fn init_telemetry() -> Result<
 
     let tracing_subscriber = build_tracing_subscriber(&logger_provider, &tracer_provider);
 
-    tracing::subscriber::set_global_default(tracing_subscriber).unwrap();
+    tracing::subscriber::set_global_default(tracing_subscriber)
+        .context("While setting global tracing subscriber")?;
 
     Ok((meter_provider, logger_provider, tracer_provider))
-}
-
-/// Used to test the telemetry setup by sending some dummy telemetry data.
-/// It is called in `main` when the `--test-telemetry` flag is set.
-pub fn send_dummy_telemetry(
-    meter_provider: &SdkMeterProvider,
-    logger_provider: &SdkLoggerProvider,
-    tracer_provider: &SdkTracerProvider,
-) -> OTelSdkResult {
-    {
-        let _test_span = info_span!("my_test_span").entered();
-
-        trace!("Creating a dummy event");
-        info!("This is an info event");
-        warn!("This is a warn event");
-
-        let meter = global::meter("my_test_meter");
-        let counter = meter.u64_counter("my_test_counter").build();
-        counter.add(1, &[]);
-    }
-
-    tracer_provider.force_flush().unwrap();
-    logger_provider.force_flush().unwrap();
-    meter_provider.force_flush().unwrap();
-
-    Ok(())
 }
