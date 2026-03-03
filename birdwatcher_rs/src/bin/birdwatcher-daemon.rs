@@ -1,20 +1,18 @@
 #![feature(never_type)]
 
-use std::{
-    io::Write,
-    path::{Path, PathBuf},
-    sync::Arc,
-};
+use std::{io::Write, path::Path, sync::Arc};
 
+use clap::Parser as _;
 use fs_err::PathExt;
 use opentelemetry::KeyValue;
 use tokio::{net::UnixListener, process::Command, task::JoinSet, time::timeout};
 
 use birdwatcher_rs::{
-    config::Config, rpc::common::Insight, rpc::server::InsightServer, service::ServiceState,
+    config::Config,
+    daemon_clap_command,
+    rpc::{common::Insight, server::InsightServer},
+    service::ServiceState,
 };
-
-use clap::Parser;
 
 use color_eyre::{
     eyre::{eyre, Context as _},
@@ -30,14 +28,6 @@ use tarpc::{
 };
 use tracing::{debug, error, field, info, warn, Instrument as _};
 
-#[derive(Parser)]
-#[command(version, about, long_about = None)]
-struct Cli {
-    /// Sets a custom config file
-    #[arg(short, long, value_name = "FILE")]
-    config: PathBuf,
-}
-
 /// A message send by a Service task to the main task
 struct ServiceCommandResult {
     service_id: usize,
@@ -47,7 +37,7 @@ struct ServiceCommandResult {
 // opentelemetry metric provider need multi_thread runtime
 #[tokio::main(flavor = "multi_thread")]
 async fn main() -> Result<()> {
-    let cli = Cli::parse();
+    let cli = daemon_clap_command::Cli::parse();
 
     let config: Config = Config::load_from_file(&cli.config).wrap_err(format!(
         "Failed to load config file {}",

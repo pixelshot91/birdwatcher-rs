@@ -1,0 +1,13 @@
+[package]
+name = "xtask"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+clap = { workspace = true }
+clap_complete = { workspace = true }
+birdwatcher-rs = { path = "./../birdwatcher_rs/" }
+
+
+# [build-dependencies]
+clap_mangen = "0.2.26"
