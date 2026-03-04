@@ -41,7 +41,7 @@ pub enum ServiceState {
 impl ServiceState {
     /// Handle the fall/rise mecanism where multiple success/failure must happen
     /// consecutivly to cause a state change
-    #[must_use] 
+    #[must_use]
     pub fn update_with(
         &self,
         return_value: bool,
