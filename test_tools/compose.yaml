@@ -40,7 +40,7 @@ services:
       - ./grafana/dashboards:/var/lib/grafana/dashboards
 
   alloy:
-    image: grafana/alloy:v1.13.0
+    image: grafana/alloy:v1.14.0-rc.1
     ports:
       - "12345:12345" # livedebugging
       - "4317:4317" # otlp grpc

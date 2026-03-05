@@ -114,7 +114,20 @@ Doc: https://opentelemetry.io/docs/specs/otel/configuration/sdk-environment-vari
 #### Metrics
 
 Example of metric using `example/birdwatcher_random.conf`.
+
+From the Live debugging of the `prometheus.remote_write.local`  
+http://127.0.0.1:12345/debug/prometheus.remote_write.local
 ```
+metadata: labels={__name__="birdwatcher_service_up"}, type="gauge", unit="", help="0 = The service is down. 1 = The service is up"
+sample: ts=1772754547924, labels={__name__="birdwatcher_service_hysteresis_state", job="unknown_service", service="random3_service"}, value=1.000000
+metadata: labels={__name__="birdwatcher_service_hysteresis_state"}, type="gauge", unit="", help="Like service_up, but more detailed. It aggregates the result the last function_return value.\n        It can take intermediate values between 0 and 1 for a failed service raising, or a successful service failing"
+sample: ts=1772754547924, labels={__name__="birdwatcher_function_return_value", job="unknown_service", service="random3_service"}, value=1.000000
+metadata: labels={__name__="birdwatcher_function_return_value"}, type="gauge", unit="", help="Return value of a function."
+sample: ts=1772754547929, labels={__name__="target_info", job="unknown_service", telemetry_sdk_language="rust", telemetry_sdk_name="opentelemetry", telemetry_sdk_version="0.30.0"}, value=1.000000
+```
+
+As Prometheus exposition format
+```prometheus
 # TYPE birdwatcher_function_return_value untyped
 birdwatcher_function_return_value{job="unknown_service",service="random1_service"} 1 1772746927016
 birdwatcher_function_return_value{job="unknown_service",service="random2_service"} 0 1772746927016
@@ -129,6 +142,47 @@ birdwatcher_service_up{job="unknown_service",service="random2_service"} 0 177274
 birdwatcher_service_up{job="unknown_service",service="random3_service"} 0 1772746927016
 # TYPE target_info untyped
 target_info{job="unknown_service",telemetry_sdk_language="rust",telemetry_sdk_name="opentelemetry",telemetry_sdk_version="0.30.0"} 1 1772746927016
+```
+
+As openmetrics
+```
+Metric #0
+Descriptor:
+     -> Name: birdwatcher_service_up
+     -> Description: 0 = The service is down. 1 = The service is up
+     -> Unit: 
+     -> DataType: Gauge
+NumberDataPoints #0
+Data point attributes:
+     -> service: Str(random1_service)
+StartTimestamp: 2026-03-05 22:59:12.560802903 +0000 UTC
+Timestamp: 2026-03-05 22:59:12.563087611 +0000 UTC
+Value: 0
+Metric #1
+Descriptor:
+     -> Name: birdwatcher_service_hysteresis_state
+     -> Description: Like service_up, but more detailed. It aggregates the result the last function_return value.
+        It can take intermediate values between 0 and 1 for a failed service raising, or a successful service failing
+     -> Unit: 
+     -> DataType: Gauge
+NumberDataPoints #0
+Data point attributes:
+     -> service: Str(random1_service)
+StartTimestamp: 2026-03-05 22:59:12.560836934 +0000 UTC
+Timestamp: 2026-03-05 22:59:12.563105537 +0000 UTC
+Value: 0.000000
+Metric #2
+Descriptor:
+     -> Name: birdwatcher_function_return_value
+     -> Description: Return value of a function.
+     -> Unit: 
+     -> DataType: Gauge
+NumberDataPoints #0
+Data point attributes:
+     -> service: Str(random2_service)
+StartTimestamp: 2026-03-05 22:59:12.56085971 +0000 UTC
+Timestamp: 2026-03-05 22:59:12.563112974 +0000 UTC
+Value: 0
 ```
 
 Metric are exported every 60s by default. This can be modified with `OTEL_METRIC_EXPORT_INTERVAL`.

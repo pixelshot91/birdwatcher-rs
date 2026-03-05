@@ -4,19 +4,25 @@ livedebugging {
 
 otelcol.receiver.otlp "main" {
 	// Receive from gRPC
-	grpc {
-		include_metadata = true
-	}
+	grpc { }
 
 	output {
 		logs    = [otelcol.exporter.loki.default.input]
-		metrics = [otelcol.exporter.debug.debug.input]
-		// metrics = [otelcol.exporter.prometheus.converter.input, otelcol.exporter.debug.debug.input]
+		metrics = [
+			// otelcol.exporter.debug.debug.input,
+			otelcol.exporter.prometheus.converter.input,
+		]
 		traces = [otelcol.exporter.otlp.tempo.input]
 	}
 }
 
 /// METRICS
+
+// It seems impossible at the moment to convserve the metadata when converting to Prometheus format
+// Someone having the same problem, but no answer: https://github.com/grafana/alloy/issues/5426
+// See alloy issue: https://github.com/grafana/alloy/issues/5250
+// Even otel-collector does not support it correctly, see https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/41840
+
 otelcol.exporter.debug "debug" {
 	verbosity = "detailed"
 }
@@ -28,17 +34,22 @@ otelcol.exporter.prometheus "converter" {
 		// prometheus.echo.debug.receiver,
 	]
 
+	// The `Live debugging` view in Alloy display the metadata only if this option is enabled
+	// But it also cause Alloy to log lots of warnings like:
+	// ts=2026-03-05T23:36:35.285254204Z level=warn msg="failed to write metric family metadata" component_path=/ component_id=otelcol.exporter.prometheus.converter metric_name=birdwatcher_function_return_value err="1 error occurred:\n\t* unknown series when trying to add metadata with SeriesRef: 0 and labels: {__name__=\"birdwatcher_function_return_value\"}\n\n"
 	honor_metadata = true
 }
 
 // print to stdout in Prometheus exposition format
+// Does not include metadata, even with `honor_metadata = true`
 prometheus.echo "debug" {
 	format = "openmetrics"
 }
 
 prometheus.remote_write "local" {
 	endpoint {
-		url              = "http://prometheus:9090/api/v1/write"
+		url = "http://prometheus:9090/api/v1/write"
+		// See alloy issue: https://github.com/grafana/alloy/issues/5250
 		protobuf_message = "io.prometheus.write.v2.Request"
 	}
 }
