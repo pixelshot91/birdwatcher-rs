@@ -113,6 +113,24 @@ Doc: https://opentelemetry.io/docs/specs/otel/configuration/sdk-environment-vari
 
 #### Metrics
 
+Example of metric using `example/birdwatcher_random.conf`.
+```
+# TYPE birdwatcher_function_return_value untyped
+birdwatcher_function_return_value{job="unknown_service",service="random1_service"} 1 1772746927016
+birdwatcher_function_return_value{job="unknown_service",service="random2_service"} 0 1772746927016
+birdwatcher_function_return_value{job="unknown_service",service="random3_service"} 0 1772746927016
+# TYPE birdwatcher_service_hysteresis_state untyped
+birdwatcher_service_hysteresis_state{job="unknown_service",service="random1_service"} 1 1772746927016
+birdwatcher_service_hysteresis_state{job="unknown_service",service="random2_service"} 0 1772746927016
+birdwatcher_service_hysteresis_state{job="unknown_service",service="random3_service"} 0 1772746927016
+# TYPE birdwatcher_service_up untyped
+birdwatcher_service_up{job="unknown_service",service="random1_service"} 1 1772746927016
+birdwatcher_service_up{job="unknown_service",service="random2_service"} 0 1772746927016
+birdwatcher_service_up{job="unknown_service",service="random3_service"} 0 1772746927016
+# TYPE target_info untyped
+target_info{job="unknown_service",telemetry_sdk_language="rust",telemetry_sdk_name="opentelemetry",telemetry_sdk_version="0.30.0"} 1 1772746927016
+```
+
 Metric are exported every 60s by default. This can be modified with `OTEL_METRIC_EXPORT_INTERVAL`.
 
 ##### Trace and logs

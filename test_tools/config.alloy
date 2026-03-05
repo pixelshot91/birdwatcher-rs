@@ -2,23 +2,48 @@ livedebugging {
 	enabled = true
 }
 
-prometheus.remote_write "local" {
-	endpoint {
-		url = "http://prometheus:9090/api/v1/write"
-	}
-}
-
 otelcol.receiver.otlp "main" {
 	// Receive from gRPC
-	grpc { }
+	grpc {
+		include_metadata = true
+	}
 
 	output {
 		logs    = [otelcol.exporter.loki.default.input]
-		metrics = [otelcol.exporter.prometheus.converter.input]
-		traces  = [otelcol.exporter.otlp.tempo.input]
+		metrics = [otelcol.exporter.debug.debug.input]
+		// metrics = [otelcol.exporter.prometheus.converter.input, otelcol.exporter.debug.debug.input]
+		traces = [otelcol.exporter.otlp.tempo.input]
 	}
 }
 
+/// METRICS
+otelcol.exporter.debug "debug" {
+	verbosity = "detailed"
+}
+// Convert OTLP metrics to Prometheus format and send to Prometheus
+otelcol.exporter.prometheus "converter" {
+	forward_to = [
+		prometheus.remote_write.local.receiver,
+		// Uncomment the line below print the metrics in Prometheus exposition format
+		// prometheus.echo.debug.receiver,
+	]
+
+	honor_metadata = true
+}
+
+// print to stdout in Prometheus exposition format
+prometheus.echo "debug" {
+	format = "openmetrics"
+}
+
+prometheus.remote_write "local" {
+	endpoint {
+		url              = "http://prometheus:9090/api/v1/write"
+		protobuf_message = "io.prometheus.write.v2.Request"
+	}
+}
+
+/// LOGS
 // Convert OTLP logs to Loki format and send to Loki
 otelcol.exporter.loki "default" {
 	forward_to = [loki.write.grafana_loki.receiver]
@@ -30,20 +55,7 @@ loki.write "grafana_loki" {
 	}
 }
 
-// Convert OTLP metrics to Prometheus format and send to Prometheus
-otelcol.exporter.prometheus "converter" {
-	forward_to = [
-		prometheus.remote_write.local.receiver,
-		// Uncomment the line below print the metrics in Prometheus exposition format
-		// prometheus.echo.debug.receiver,
-	]
-}
-
-// print to stdout in Prometheus exposition format
-prometheus.echo "debug" {
-	format = "text"
-}
-
+/// TRACES
 // Convert OTLP traces to Tempo format and send to Tempo
 otelcol.exporter.otlp "tempo" {
 	client {
