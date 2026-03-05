@@ -113,6 +113,19 @@ Doc: https://opentelemetry.io/docs/specs/otel/configuration/sdk-environment-vari
 
 #### Metrics
 
+Example of metric using `example/birdwatcher_random.conf`.
+
+From the Live debugging of the `prometheus.remote_write.local` [link](http://127.0.0.1:12345/debug/prometheus.remote_write.local)
+
+```
+metadata: labels={__name__="birdwatcher_service_up"}, type="gauge", unit="", help="0 = The service is down. 1 = The service is up"
+sample: ts=1772754547924, labels={__name__="birdwatcher_service_hysteresis_state", job="unknown_service", service="random3_service"}, value=1.000000
+metadata: labels={__name__="birdwatcher_service_hysteresis_state"}, type="gauge", unit="", help="Like service_up, but more detailed. It aggregates the result the last function_return value.\n        It can take intermediate values between 0 and 1 for a failed service raising, or a successful service failing"
+sample: ts=1772754547924, labels={__name__="birdwatcher_function_return_value", job="unknown_service", service="random3_service"}, value=1.000000
+metadata: labels={__name__="birdwatcher_function_return_value"}, type="gauge", unit="", help="Return value of a function."
+sample: ts=1772754547929, labels={__name__="target_info", job="unknown_service", telemetry_sdk_language="rust", telemetry_sdk_name="opentelemetry", telemetry_sdk_version="0.30.0"}, value=1.000000
+```
+
 Metric are exported every 60s by default. This can be modified with `OTEL_METRIC_EXPORT_INTERVAL`.
 
 ##### Trace and logs
