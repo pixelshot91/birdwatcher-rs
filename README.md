@@ -117,10 +117,13 @@ Doc: <https://opentelemetry.io/docs/specs/otel/configuration/sdk-environment-var
 
 #### Metrics
 
-Example of metric using `example/birdwatcher_random.conf`.
+| Name                                 | Type  | Unit | Description                                                                                                                                                                                                      |
+| ------------------------------------ | ----- | ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| birdwatcher_service_up               | gauge |      | 0 = The service is down. 1 = The service is up                                                                                                                                                                   |
+| birdwatcher_service_hysteresis_state | gauge |      | Like `service_up`, but more detailed. It aggregates the result the last function_return value.<br>It can take intermediate values between 0 and 1 for a failed service raising, or a successful service failing. |
+| birdwatcher_function_return_value    | gauge |      | Return value of a function.                                                                                                                                                                                      |
 
-From the Live debugging of the `prometheus.remote_write.local` [link](http://127.0.0.1:12345/debug/prometheus.remote_write.local)
-
+Example of metric using `example/birdwatcher_random.conf`, extracted from the Live debugging of the `prometheus.remote_write.local` [link](http://127.0.0.1:12345/debug/prometheus.remote_write.local)
 ```
 metadata: labels={__name__="birdwatcher_service_up"}, type="gauge", unit="", help="0 = The service is down. 1 = The service is up"
 sample: ts=1772754547924, labels={__name__="birdwatcher_service_hysteresis_state", job="unknown_service", service="random3_service"}, value=1.000000
