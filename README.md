@@ -96,8 +96,6 @@ fall = 1
 rise = 3
 ```
 
-### Log level of stdout
-
 ### Telemetry
 
 #### Endpoint
