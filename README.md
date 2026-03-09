@@ -39,10 +39,11 @@ rise = 8
    Note that the yellow curve goes down faster than it goes up, because it only needs 5 FAIL to `fall`.
 
 To reproduce, use the docker compose in `test_tools` folder:
+
 ```bash
-$ cd test_tools
-$ docker compose up --abort-on-container-exit
-$ OTEL_METRIC_EXPORT_INTERVAL=1 BIRDWATCHER_TRACE_LEVEL=info BIRDWATCHER_LOG_LEVEL=birdwatcher_daemon=debug,info nix run .# -- --config example/birdwatcher_random.conf
+cd test_tools
+docker compose up --abort-on-container-exit
+OTEL_METRIC_EXPORT_INTERVAL=1 BIRDWATCHER_TRACE_LEVEL=info BIRDWATCHER_LOG_LEVEL=birdwatcher_daemon=debug,info nix run .# -- --config example/birdwatcher_random.conf
 ```
 
 ## Usage
@@ -50,7 +51,9 @@ $ OTEL_METRIC_EXPORT_INTERVAL=1 BIRDWATCHER_TRACE_LEVEL=info BIRDWATCHER_LOG_LEV
 ### Building
 
 #### With Nix
+
 Quick start:
+
 ```
 nix run github:pixelshot91/birdwatcher-rs -- --help
 ```
@@ -58,6 +61,7 @@ nix run github:pixelshot91/birdwatcher-rs -- --help
 To use install it on NixOs, look up `integration_test/single_service.nix`
 
 #### Without Nix
+
 1. [Install Rust](https://www.rust-lang.org/tools/install)
 2. `cargo run -- --config my_config.toml`
 
@@ -101,7 +105,7 @@ rise = 3
 By default,telemetry is send to endpoint `http://localhost:4317` using the gRPC protocol.
 You can change the endpoint by settings the `OTEL_EXPORTER_OTLP_ENDPOINT` environment variable.  
 
-https://docs.rs/opentelemetry-otlp/0.30.0/opentelemetry_otlp/#constants
+<https://docs.rs/opentelemetry-otlp/0.30.0/opentelemetry_otlp/#constants>
 
 #### Resource
 
@@ -109,7 +113,7 @@ You can define Resources with this env var `OTEL_RESOURCE_ATTRIBUTES`.
 
 Example: `OTEL_RESOURCE_ATTRIBUTES='service.name=my_service_name'`
 
-Doc: https://opentelemetry.io/docs/specs/otel/configuration/sdk-environment-variables/#general-sdk-configuration
+Doc: <https://opentelemetry.io/docs/specs/otel/configuration/sdk-environment-variables/#general-sdk-configuration>
 
 #### Metrics
 
@@ -133,7 +137,7 @@ Metric are exported every 60s by default. This can be modified with `OTEL_METRIC
 Both trace and log can be filtered with the following env var: `BIRDWATCHER_TRACE_LEVEL`, `BIRDWATCHER_LOG_LEVEL`
 
 Level can be: `error`, `warn`, `info`, `debug`, `trace`  
-Levels are defined here: https://docs.rs/tracing-core/0.1.35/tracing_core/metadata/struct.Level.html#implementations
+Levels are defined here: <https://docs.rs/tracing-core/0.1.35/tracing_core/metadata/struct.Level.html#implementations>
 
 Example: `BIRDWATCHER_LOG_LEVEL=info`
 By default, only log level `error` are shown.
@@ -148,34 +152,41 @@ More info about EnvFilter directive: <https://docs.rs/tracing-subscriber/0.3.19/
 ## Why fork Skoef's birdwatcher
 
 Little improvements over Skoef's birdwatcher:
-  - `birdwatcher-rs` does not link a service with a list of IP addresses like `birdwatcher` does.  
+
+- `birdwatcher-rs` does not link a service with a list of IP addresses like `birdwatcher` does.  
   `birdwatcher-rs` only return a function return a simple `true` or `false`, whereas `birdwatcher` force to use a BIRD filter, which might prevent some configuration, and caused some problems.  
-  See https://github.com/skoef/birdwatcher/issues/28 and https://github.com/skoef/birdwatcher/issues/25
-  - I tried to make `birdwatcher-rs` code simpler. The only moving part is a list of value representing the service states.
-  - `birdwatcher-rs` enable the service if the first check is successful, whatever the `rise` value is.
-  - It uses Rust, which I find cleaner and prevent entire classes of bugs compared to Go, such as null-pointer exception, generics, sum-type.
-  - `birdwatcher-rs` support Nix, for easy and reproducible build. It include an integration test running birdwatcher-rs in a VM with NixOS test framekwork.
+  See <https://github.com/skoef/birdwatcher/issues/28> and <https://github.com/skoef/birdwatcher/issues/25>
+- I tried to make `birdwatcher-rs` code simpler. The only moving part is a list of value representing the service states.
+- `birdwatcher-rs` enable the service if the first check is successful, whatever the `rise` value is.
+- It uses Rust, which I find cleaner and prevent entire classes of bugs compared to Go, such as null-pointer exception, generics, sum-type.
+- `birdwatcher-rs` support Nix, for easy and reproducible build. It include an integration test running birdwatcher-rs in a VM with NixOS test framekwork.
 
 ## Development
+
 To build from source:
+
 ```
 nix build
 result/bin/birdwatcher-rs --config my_config.toml
 ```
 
 ### RPC framework
+
 For the daemon and the client to communicate, I need a RPC framework.  
 I would like it to be, by order of importance:
+
 - correct: The de/serialization code should be generated. Function name should not be matched as string, but be part of Trait. An error in function name, return type, parameter count or type should be a compile-time error.
 - thread-safe: Although I do not plan many clients to query the daemon, I still want it to resilient against concurrent queries. It should not be possible for a client to see an answer intended for another client.  
   The framework should link each query/response automatically
 - Maintained: A high number of contributor, frequent releases, and no unanswered issues.
 
 Not very useful:
+
 - High performance: It will be used as a monitoring tool, at the very most one query per second.
 - Inter-language: The client could be written is something else than Rust.
 
 Option:
+
 - [tonic](https://github.com/hyperium/tonic): Seems to most popular, but need to redefine all struct in protobuf. A one person project [tonci-rpc](https://github.com/adamrk/tonic-rpc) exists to automatically generate the protobuf from the Rust code, but is unmaintained since February 2023.
 - [tarpc](https://github.com/google/tarpc) Generate message directly from Rust code, but not lot of activity. Weird dependency on `opentelemetry`.
 - [jsonrpsee](https://github.com/paritytech/jsonrpsee) function are not well-typed: function name is a string, and parameter type and count are check at runtime.
